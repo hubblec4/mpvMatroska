@@ -43,7 +43,8 @@ msg.info("Matroska Playback: on_load")
 		
     -- the loaded file is not Matroska, disable mpvMatroska
     else
-        
+        mkplay:close()
+        mkplay = nil
     end
 end
 
