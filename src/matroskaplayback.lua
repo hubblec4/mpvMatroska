@@ -105,7 +105,8 @@ end
 
 -- closs: clean some var's
 function Mk_Playback:close()
-    -- TODO:
+    if self.init_file then self.init_file:close() end
+    self:_close_files()
 end
 
 -- init_chapters: init editions and chapters, after file is loaded
@@ -177,6 +178,25 @@ function Mk_Playback:on_edition_change(new_idx)
 end
 
 -- private section -------------------------------------------------------------
+
+-- close_files: a method to clean temp_files and mk_files
+function Mk_Playback:_close_files(only_temps)
+    -- close temp_files
+    for _, mk_file in ipairs(self.temp_files) do
+        mk_file:close()
+    end
+    self.temp_files = {}
+    -- exit if only temp_file
+    if only_temps then return end
+
+    -- close mk_files
+    for _, mk_file in ipairs(self.mk_files) do
+        if mk_file.seg_uuid ~= self.init_file.seg_uuid then
+            mk_file:close()
+        end
+    end
+    self.mk_files = {}
+end
 
 -- scan (private): scan the file and prepare all used Matroska features
 function Mk_Playback:_scan(path)
@@ -445,8 +465,8 @@ function Mk_Playback:_check_hard_linking()
         -- finish backward search, the first mk_file is now the main file
         -- again are the Chapters important and can break Hard-Linking at this point,
         -- when the default edition of this first main file has ordered chapters
-        if self.mk_files[1]:ordered_chapters_are_used() then
-            -- TODO: clean - use a clean-method
+        if #self.mk_files > 1 and self.mk_files[1]:ordered_chapters_are_used() then
+            self:_close_files()
             return
         end
     end
@@ -467,7 +487,9 @@ function Mk_Playback:_check_hard_linking()
 
     -- check if another file was added
     if #self.mk_files == 1 then -- no file was added
-        -- TODO: clean
+        -- clean temp_ and mk_files
+        self.mk_files = {}
+        self:_close_files(true)
         return
     end
 
