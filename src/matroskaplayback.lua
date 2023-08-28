@@ -162,7 +162,7 @@ function Mk_Playback:prepare_editions_chapters(language)
             run_time = run_time + file:get_video_duration(file.Tracks:get_track(self.mpv_current_vid - 1))
         end
         
-    -- TODO: other's
+    -- all other chapter features
     else
         if self.init_file.Chapters then
             self:_prepare_editions(self.init_file)
