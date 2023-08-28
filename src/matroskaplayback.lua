@@ -156,7 +156,7 @@ function Mk_Playback:prepare_editions_chapters(language)
                 self:_prepare_chapters(file.Chapters:get_edition(self.current_edition_idx), language, run_time)
             end
 
-            --TODO: increase run_time by video-duration
+            -- increase run_time by video-duration
             --TODO: what is when there is no video or no audio -> I guess then is the Segment-Duration fine
             run_time = run_time + file:get_video_duration(file.Tracks:get_track(self.mpv_current_vid - 1))
         end
@@ -571,8 +571,6 @@ function Mk_Playback:_prepare_chapters(edition, language, time_offset)
                  a chapter name could be used also the ChapProcess element can have some instructions
 
                  I will try to support zero-duration(and negative) chapters to support nested-ordered-chapters
-
-                 TODO: maybe I need way to return the run_time
             ]]
             if end_time then
                 end_time = end_time.value
