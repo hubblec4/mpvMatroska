@@ -4,15 +4,11 @@ local msg = require "mp.msg"
 local mkplayback = require "matroskaplayback"
 local mkplay
 
-local MPV_ORDERED_CHAPTERS_FLAG
-local MPV_REFERENCES_FLAG
+
+-- disable mpv's internal ordered-chapters support!
+mp.set_property_native("ordered-chapters", false)
 
 msg.debug("Matroska Playback loded: ", mkplayback ~= nil)
-
-
-
-
-
 
 
 
@@ -34,24 +30,26 @@ local function mp_file_loaded()
 end
 
 
-
-
 local function mp_on_load()
 msg.info("Matroska Playback: on_load")
     if mkplay then mkplay:close() end
 
     mkplay = mkplayback.Mk_Playback:new(mp.get_property("stream-open-filename", ""))
 	
+    -- when the edl_path is not empty then Matroska features are present and mpvMatroska is used
     if mkplay.edl_path ~= "" then
+        mp.register_event("file-loaded", mp_file_loaded)
         mp.set_property("stream-open-filename", mkplay.edl_path)
-		mp.register_event("file-loaded", mp_file_loaded)
+		
+    -- the loaded file is not Matroska, disable mpvMatroska
+    else
+        
     end
 end
 
 local function mp_on_preloaded()
 
 end
-
 
 
 
@@ -66,11 +64,3 @@ end
 -- hooks
 mp.add_hook("on_load", 50, mp_on_load)
 --mp.add_hook("on_preloaded", 50, mp_on_preloaded)
-
--- events
---mp.register_event("file-loaded", mp_file_loaded)
-
-
---monitor the relevant options
-mp.observe_property("access-references", "bool", function(_, val) MPV_ORDERED_CHAPTERS_FLAG = val end)
-mp.observe_property("ordered-chapters", "bool", function(_, val) MPV_REFERENCES_FLAG = val end)
