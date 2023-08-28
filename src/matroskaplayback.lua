@@ -645,7 +645,7 @@ function Mk_Playback:_build_timeline()
         local linked_file, idx
         local intern_edition
         local link_list = {} -- a list with linked chapter items
-        local start_time, end_time, current_start_time, current_end_time, current_sid
+        local start_time, end_time
 
         -- load files
         local function load_files()
