@@ -495,14 +495,6 @@ function Mk_Playback:_check_hard_linking()
 
     -- Hard-Linking is used
     self.used_features[MK_FEATURE.hard_linking] = true
-
-    --we'll use the mpv edl specification to merge the files into one seamless timeline
-    self.edl_path = "edl://!no_chapters;" -- without chapters
-    for _, file in ipairs(self.mk_files) do
-        -- the filepath should start with `%[#-chars-in-path]%` to handle any special characters
-        --self.edl_path = self.edl_path .. ("%%%d%%%s;"):format(file.path:len(), file.path)
-        self.edl_path = self.edl_path .. ("%%%d%%%s,0,%f;"):format(file.path:len(), file.path, file:get_video_duration() / 1000000000)
-    end
 end
 
 -- _prepare_editions (private): prepare mpv editions
