@@ -90,7 +90,7 @@ local Mk_Playback = {
     current_edition_idx = 0,
 
     -- internal_editions: array, a list of edition items with useful info
-    internal_editions = {} -- edition{used_features{}, edl_path}
+    internal_editions = {} -- edition{{edl_path = "", main_file_idx = 0}}
 }
 
 -- constructor
@@ -220,11 +220,11 @@ function Mk_Playback:_get_main_file(for_tracks)
         return self.mk_files[1]
     end
 
-    -- TODO: linked-chapters files, init_file has only Chapters, no Tracks
+    -- linked-chapters files, init_file has only Chapters, no Tracks
     -- the main file depends on the chapers structure and can be any file in mk_files
-    --if for_tracks and self.used_features[MK_FEATURE.linked_chapters_file] then
-        -- return self.mk_files[self.main_file_idx]
-    --end
+    if for_tracks and self.used_features[MK_FEATURE.linked_chapters_file] then
+        return self.mk_files[self.internal_editions[self.current_edition_idx].main_file_idx]
+    end
 
     -- no specials
     return self.init_file
