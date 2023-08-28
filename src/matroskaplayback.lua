@@ -538,7 +538,6 @@ function Mk_Playback:_prepare_chapters(edition, language, time_offset)
     ]]
 
     if edition:is_hidden() then return end
-    -- TODO: hidden ordered edition, maybe also process the edition for the run_time
 
     --if language == nil then language = "" end
 
