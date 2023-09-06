@@ -18,12 +18,8 @@ local function mp_file_loaded()
     mkplay.mpv_current_aid = mp.get_property_native("current-tracks/audio/id")
     mkplay.mpv_current_sid = mp.get_property_native("current-tracks/sub/id")
     -- init chapters
-    mkplay:init_chapters()
-	msg.debug("Matroska Playback: Edition count: ", #mkplay.mpv_editions)
-	msg.debug("Matroska Playback: Chapters count: ", #mkplay.mpv_chapters)
-	
-    mp.set_property_native("edition-list", mkplay.mpv_editions)
-	mp.set_property_native("chapter-list", mkplay.mpv_chapters)
+    --mp.set_property_native("edition-list", mkplay.mpv_editions)
+	mp.set_property_native("chapter-list", mkplay:get_mpv_chapters(true))
 	msg.debug("Matroska Playback: init chapters done")
 	
 	mp.unregister_event(mp_file_loaded)

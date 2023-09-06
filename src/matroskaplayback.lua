@@ -9,9 +9,6 @@ local msg = require "mp.msg"
 local utils = require "mp.utils"
 
 
-
-
-
 -- constants -------------------------------------------------------------------
 local MK_FEATURE = {
     hard_linking            =  1, -- a special system to link files virtually to a single seamless timeline
@@ -36,9 +33,200 @@ local function get_directory(path)
     return path:match("^(.+[/\\])[^/\\]+[/\\]?$") or ""
 end
 
--- new_internal_edition_item: returns an edition item for internal use
-local function new_internal_edition_item()
-    return {edl_path = "", main_file_idx = 0} -- main_file_idx = 0 means no extern file, init_file is main file
+
+-- -----------------------------------------------------------------------------
+-- Internal Edition Class ------------------------------------------------------
+-- -----------------------------------------------------------------------------
+
+local Internal_Edition = {
+    edl_path = "",
+    --main_file_idx = 0, -- main_file_idx = 0 means no extern file, init_file is main file
+    current_edition_lang = "",
+    duration = 0,
+    ordered = false, -- edition use ordered chapters?
+}
+
+-- constructor
+function Internal_Edition:new()
+    local elem = {}
+    setmetatable(elem, self)
+    self.__index = self
+    elem.current_edition_lang = ""
+    elem.chapter_timeline = {} -- array, is a linear chapter list of all used chapters, currently exluded disabled chapters
+    return elem
+end
+
+-- add_chapter_segment
+function Internal_Edition:add_chapter_segment(chp_ref, file_path, time_marker, level, hidden)
+    local c_segment = {
+        file_path = file_path, -- file path is needed to create the EDL path
+        timeline_marker = time_marker, -- float with seconds, this is also a new virtual start time when the referenced chapter is played
+        level = level, -- nested level of the chapter
+        current_lang = "_nil_", -- init with an invalid language code
+        current_name = "",
+        Chapter = chp_ref, -- a chapter reference
+        -- visible: boolean, this flag overrides the internal ChapterFlagHidden
+        -- this can happen when linked-Editions are used and the linked Edition is hidden
+        visible = not hidden,
+        -- virtual: boolean, such a chapter is used to link a file without chapters
+        -- or for Hard-Linking to skip ordered Editions in the chain
+        -- or when a first chapter's start time of a non-ordered Edition is not 0
+        virtual = false,
+        
+    }
+    table.insert(self.chapter_timeline, c_segment)
+    return #self.chapter_timeline
+end
+
+-- add_virtual_segment
+function Internal_Edition:add_virtual_segment(file_path, time_marker, level, chap_start, chap_end)
+    if chap_start == nil then chap_start = 0 end -- check start time
+
+    -- create a virtual chapter and set the times
+    local vc = mk.chapters.ChapterAtom:new()
+    -- set start time
+    vc:get_child(mk.chapters.ChapterTimeStart).value = chap_start
+    -- end time, this vaule is not always there (non-ordered editions)
+    if chap_end then
+        local et = mk.chapters.ChapterTimeEnd:new()
+        et.value = chap_end
+        table.insert(vc.value, et)
+    end
+
+    local idx = self:add_chapter_segment(vc, file_path, time_marker, level, true)
+    self.chapter_timeline[idx].virtual = true
+    return idx
+end
+
+-- add_chap_endtime: a method to set a chapter end time of non-ordered editions
+-- with ordered chapters it is everything easy to handle
+function Internal_Edition:add_chap_endtime(idx, time)
+    -- check if a end time element is already there
+
+    local et = self.chapter_timeline[idx].Chapter:find_child(mk.chapters.ChapterTimeEnd)
+    -- end time is present, change the value to new time
+    if et then
+        et.value = time
+        return
+    end
+    
+    -- create new end time element
+    et = mk.chapters.ChapterTimeEnd:new()
+    et.value = time
+    table.insert(self.chapter_timeline[idx].Chapter.value, et)
+end
+
+-- get_mpv_chapter_list()
+function Internal_Edition:get_mpv_chapter_list(langs)
+    -- langs: array with language codes, when nil the first name is used
+    if langs == nil then langs = {""} end -- no language code -> first name
+    local mpvlist = {} -- mpv chapter list
+    local c_name
+
+    -- loop over chapter items
+    for _, chp_item in ipairs(self.chapter_timeline) do
+        -- chapters must be visible, check item.visible and chapter hidden flag
+        if chp_item.visible and not chp_item.Chapter:is_hidden() then
+            c_name = ""
+
+            -- find chapter name
+            for _, lng in ipairs(langs) do
+                -- check lng, nothing todo if the current_lang match
+                if lng == chp_item.current_lang then break end
+
+                c_name = chp_item.Chapter:get_name(lng, false, true)
+
+                -- name found
+                if c_name ~= "" then
+                    chp_item.current_name = c_name
+                    chp_item.current_lang = lng -- set new language
+                    break
+                end
+            end
+
+            -- no new name found and current_name is empty
+            if c_name == "" and chp_item.current_name == "" then
+                c_name = chp_item.Chapter:get_name("") -- get first chapter name
+                -- check again, name could be empty -> no chapter Display or a really empty name
+                if c_name == "" then c_name = " " end -- use a space for the name
+                chp_item.current_name = c_name
+                chp_item.current_lang = ""
+            end
+
+            -- process nested level
+            if chp_item.level > 0 then
+                c_name = " "
+                for i = 1, chp_item.level do
+                    c_name = c_name .. "+"
+                end
+                c_name = c_name .. " " .. chp_item.current_name
+            else
+                c_name = chp_item.current_name
+            end
+
+            -- add chapter to the mpvlist
+            table.insert(mpvlist, {time = chp_item.timeline_marker / 1000000000, title = c_name})
+        end
+    end
+
+    return mpvlist
+end
+
+-- get_main_filepath: returns the file path from the first chapter segment
+function Internal_Edition:get_main_filepath()
+    return self.chapter_timeline[1].file_path
+end
+
+-- create_edl_path
+function Internal_Edition:create_edl_path()
+    -- non-ordered edition
+    if not self.ordered then
+        local filepath = self.chapter_timeline[1].file_path -- file path from frist chapter segment
+        self.edl_path = ("edl://!no_chapters;%%%d%%%s;"):format(filepath:len(), filepath)
+        return
+    end
+
+    -- all chapters should now have ever an end time
+    local start_time = 0
+    local prev_endtime = 0
+    local curr_endtime
+    local curr_path = ""
+    self.edl_path = "edl://!no_chapters;" -- init edl path
+
+    -- loop over chapter items
+    for _, chp_item in ipairs(self.chapter_timeline) do
+        -- start time
+        local curr_starttime = chp_item.Chapter:get_child(mk.chapters.ChapterTimeStart).value
+        -- end time
+        curr_endtime = chp_item.Chapter:find_child(mk.chapters.ChapterTimeEnd).value
+
+        -- new path, a new file segment or different times
+        if chp_item.file_path ~= curr_path or prev_endtime ~= curr_starttime then
+
+            if prev_endtime > start_time then
+                self.edl_path = self.edl_path .. ("%%%d%%%s,%f,%f;"):format(curr_path:len(),
+                curr_path, start_time / 1000000000, (prev_endtime - start_time) / 1000000000)
+            end
+
+            -- new times
+            start_time = curr_starttime
+            prev_endtime = curr_endtime
+            -- new file path
+            if chp_item.file_path ~= curr_path then
+                curr_path = chp_item.file_path -- set new current path
+            end
+
+        else -- same file path and sequential times
+            prev_endtime = curr_endtime
+        end
+
+    end
+
+    -- last chapter
+    if curr_endtime > start_time then
+        self.edl_path = self.edl_path .. ("%%%d%%%s,%f,%f;"):format(curr_path:len(),
+        curr_path, start_time / 1000000000, (curr_endtime - start_time) / 1000000000)
+    end
 end
 
 
@@ -65,12 +253,6 @@ local Mk_Playback = {
     -- edl_path: a string with a special path system for mpv
     edl_path = "",
 
-    -- mpv_editions: the same list as mpv use Array{Item{id, title, default}}
-    mpv_editions = {},
-
-    -- mpv_chapters: the same list as mpv use Array{Item{title, time}}
-    mpv_chapters = {},
-
     -- mpv_current_vid: mpv number for video streams, start with 1, 0 = not used
     mpv_current_vid = 0,
 
@@ -80,17 +262,14 @@ local Mk_Playback = {
     -- mpv_current_sid: mpv number for subtitle streams, start with 1, 0 = not used
     mpv_current_sid = 0,
 
-    -- current_chapters_lang: language for edition and chapter names
-    current_chapters_lang = "",
-
     -- available_chapters_langs: array[lng = true]
     available_chapters_langs = {},
 
-    -- current_edition_idx: integer, a 0-based index
+    -- current_edition_idx: integer, 1-based
     current_edition_idx = 0,
 
     -- internal_editions: array, a list of edition items with useful info
-    internal_editions = {} -- edition{{edl_path = "", main_file_idx = 0}}
+    internal_editions = {}
 }
 
 -- constructor
@@ -98,7 +277,12 @@ function Mk_Playback:new(path)
     local elem = {}
     setmetatable(elem, self)
     self.__index = self
-    elem.current_chapters_lang = nil -- use nil for init
+    elem.init_file = nil
+    elem.mk_files = {}
+    elem.temp_files = {}
+    elem.used_features = {}
+    elem.current_chapters_lang = {}
+    elem.internal_editions = {}
     elem:_scan(path)
     return elem
 end
@@ -109,73 +293,61 @@ function Mk_Playback:close()
     self:_close_files()
 end
 
--- init_chapters: init editions and chapters, after file is loaded
-function Mk_Playback:init_chapters()
-    -- at this point all current used stream id's are available
-    local file, trk
-    local lng = ""
+-- get_mpv_chapters: returns the mpv chapters list
+-- @param init: boolean, is used for initialization reason
+function Mk_Playback:get_mpv_chapters(init)
+    local file, trk, lng
+    local langs = {}
+    local intern_ed = self.internal_editions[self.current_edition_idx]
 
-    file = self:_get_main_file()
-    if not file then return end
-
-    -- audio language
-    if self.mpv_current_aid > 0 then
-        trk = file:get_audio(self.mpv_current_aid - 1)
-        if trk then
-            lng = trk:get_language()
-            if self.available_chapters_langs[lng] then
-                self:prepare_editions_chapters(lng)
-                return
+    file = self:_get_main_file(true) -- get main file for tracks
+    if file then
+        -- audio language
+        if self.mpv_current_aid > 0 then
+            trk = file:get_audio(self.mpv_current_aid)
+            if trk then
+                lng = trk:get_language()
+                if self.available_chapters_langs[lng] then
+                    table.insert(langs, lng)
+                end
+            end
+        end
+    
+        -- subtitle language
+        if self.mpv_current_sid > 0 then
+            trk = file:get_subtitle(self.mpv_current_sid)
+            if trk then
+                lng = trk:get_language()
+                if self.available_chapters_langs[lng] then
+                    table.insert(langs, lng)
+                end
             end
         end
     end
 
-    -- subtitle language
-    if self.mpv_current_sid > 0 then
-        trk = file:get_subtitle(self.mpv_current_sid -1)
-        if trk then
-            lng = trk:get_language()
-        end
-    end
-    self:prepare_editions_chapters(lng)
-end
-
--- prepare_editions_chapters: prepare the edition and chapter list
-function Mk_Playback:prepare_editions_chapters(language)
-    if language == self.current_chapters_lang then return end
-
-    -- Hard-Linking chapters
-    if self.used_features[MK_FEATURE.hard_linking] then
-        -- first file is used for the editions
-        self:_prepare_editions(self.mk_files[1])
-        if #self.mpv_editions == 0 then return end -- no edition, no chapters
-
-        local run_time = 0
-        -- loop over all used mk_files for the chapters
-        for _, file in ipairs(self.mk_files) do
-            if file.Chapters then
-                self:_prepare_chapters(file.Chapters:get_edition(self.current_edition_idx), language, run_time)
-            end
-
-            -- increase run_time by video-duration
-            --TODO: what is when there is no video or no audio -> I guess then is the Segment-Duration fine
-            run_time = run_time + file:get_video_duration(file.Tracks:get_track(self.mpv_current_vid - 1))
-        end
+    -- empty langs list
+    if #langs == 0 then
+        -- without a language it makes no sense to create the chapters list
+        -- it will be the same as current used
         
-    -- all other chapter features
-    else
-        if self.init_file.Chapters then
-            self:_prepare_editions(self.init_file)
-            self:_prepare_chapters(self.init_file.Chapters:get_edition(self.current_edition_idx), language)
+        -- init is true
+        if init then
+            langs = nil -- uses nil, this will be change to an empty language -> first chapter name
+
+        else -- init is false/nil
+            return nil -- nil signals there is no change necessary of the current chapter list
         end
     end
-    self.current_chapters_lang = language -- set new used language
+
+    return intern_ed:get_mpv_chapter_list(langs)
 end
+
 
 -- on_edition_change: event when in mpv the edititon is changed
 function Mk_Playback:on_edition_change(new_idx)
     self.current_edition_idx = new_idx
 end
+
 
 -- private section -------------------------------------------------------------
 
@@ -209,7 +381,7 @@ function Mk_Playback:_scan(path)
 
     self:_check_hard_linking()
     self:_analyze_chapters()
-    self:_build_timeline()
+    self:_build_timelines()
 end
 
 -- _get_main_file: returns the current main file
@@ -223,7 +395,14 @@ function Mk_Playback:_get_main_file(for_tracks)
     -- linked-chapters files, init_file has only Chapters, no Tracks
     -- the main file depends on the chapers structure and can be any file in mk_files
     if for_tracks and self.used_features[MK_FEATURE.linked_chapters_file] then
-        return self.mk_files[self.internal_editions[self.current_edition_idx].main_file_idx]
+        if self.current_edition_idx > 0 then
+            local main_path = self.internal_editions[self.current_edition_idx]:get_main_filepath()
+            for _, file in ipairs(self.mk_files) do
+                if file.path == main_path then
+                    return file
+                end
+            end
+        end
     end
 
     -- no specials
@@ -235,7 +414,7 @@ function Mk_Playback:_analyze_chapters()
     local mk_file = self:_get_main_file()
     self.available_chapters_langs = {}
     if mk_file == nil or mk_file.Chapters == nil then
-        self.current_edition_idx = -1
+        self.current_edition_idx = 0
         return
     end
 
@@ -497,278 +676,162 @@ function Mk_Playback:_check_hard_linking()
     self.used_features[MK_FEATURE.hard_linking] = true
 end
 
--- _prepare_editions (private): prepare mpv editions
-function Mk_Playback:_prepare_editions(mfile, language)
-    if mfile == nil then return end
-    local chaps = mfile.Chapters
-    if language == self.current_chapters_lang or chaps == nil then return end
-
-    local uid
-    self.mpv_editions = {}
-    local edition, i = chaps:find_child(mk.chapters.EditionEntry)
-    while edition do
-        uid = edition:find_child(mk.chapters.EditionUID)
-        if uid then
-            uid = uid.value
-        else
-            uid = #self.mpv_editions
-        end
-
-        -- add edition
-        table.insert(self.mpv_editions,
-            {id = uid
-            ,title = mfile:get_edition_name(edition, language)
-            ,default = edition:get_child(mk.chapters.EditionFlagDefault).value == 1})
-        
-        edition, i = chaps:find_next_child(i)
-    end
-end
-
--- _prepare_chapters (private): prepare mpv chapters
-function Mk_Playback:_prepare_chapters(edition, language, time_offset)
-    if not time_offset then
-		self.mpv_chapters = {} -- init empty array
-	end
-
-    if language == self.current_chapters_lang or edition == nil then return end
-    --[[ if "language" is set then chapter name(s) with this language will be used
-        otherwise always the first chapter name is used
-
-        time_offset in nanosecs: is usefull when the chapters are created for Hard-Linking
-    ]]
-
-    if edition:is_hidden() then return end
-
-    --if language == nil then language = "" end
-
-    local start_time, end_time
-    local run_time = 0
-    if time_offset then run_time = time_offset end
-    
-    local e_ordered = edition:is_ordered()
-
-    local function add_chapter(time, title, level)
-        if title == "" then
-            title = " "  -- a space is used to prevent auto chapternaming
-        else -- nested chapters level
-            local nested = ""
-            for i = 1, level do
-                nested = nested .. "+"
-            end
-            if nested ~= "" then
-                nested = " " .. nested .. " "
-            end
-            title = nested .. title
-        end
-        table.insert(self.mpv_chapters, {time = time / 1000000000, title = title})
-    end
-
-    local function process_chapter(chp, level)
-        if chp == nil
-        -- ignore disabled chapters fully
-        or not chp:is_enabled() then return end
-        
-        start_time = chp:get_child(mk.chapters.ChapterTimeStart).value
-
-        -- ordered chapters
-        if e_ordered then
-            if not chp:is_hidden() then
-                add_chapter(run_time, chp:get_name(language), level)
-            end
-            -- find end-time element
-            end_time = chp:find_child(mk.chapters.ChapterTimeEnd)
-            --[[ ordered chapters uses a duration to play a specific content
-                 we need a positiv duration, means end_time must be greater than start_time
-                 zero duration: such chapters are ignored by the players for the virtual timeline
-                 thats fine, but the content of the chapter should not be skipped
-                 a chapter name could be used also the ChapProcess element can have some instructions
-
-                 I will try to support zero-duration(and negative) chapters to support nested-ordered-chapters
-            ]]
-            if end_time then
-                end_time = end_time.value
-            else
-                end_time = 0
-            end
-            -- increase the run_time only if end_time greater than start_time
-            if end_time > start_time then
-                run_time = run_time + (end_time - start_time)
-            end
-
-        -- normal chapters, must be visible
-        elseif not chp:is_hidden() then
-            add_chapter(start_time + run_time, chp:get_name(language), level)
-        end
-        
-        -- process nested chapters
-        -- nesting can be endless, support max 9 levels include the base level(0)
-        if level > 8 then return end
-        local nchap, nc = chp:find_child(mk.chapters.ChapterAtom)
-        while nchap do
-            process_chapter(nchap, level + 1)
-            nchap, nc = chp:find_next_child(nc)
-        end
-        
-    end
-
-    local chapter, idx = edition:find_child(mk.chapters.ChapterAtom)
-    while chapter do
-        process_chapter(chapter, 0)
-        chapter, idx = edition:find_next_child(idx)
-    end
-
-end
-
--- _build_timeline (private): generates the virtual seamless timeline(s) depend on the used chapters features using mpv edl system
-function Mk_Playback:_build_timeline()
+-- _build_timelines (private): generates for each edition a virtual chapter_timeline
+function Mk_Playback:_build_timelines()
     self.internal_editions = {}
-
-    -- Hard-Linking
-    if self.used_features[MK_FEATURE.hard_linking] then
-        self.edl_path = "edl://!no_chapters;"
-        for _, file in ipairs(self.mk_files) do
-            self.edl_path = self.edl_path .. ("%%%d%%%s,0,%f;"):format(file.path:len(), file.path, file:get_video_duration() / 1000000000)
-        end
-        return
-    end
 
     local mk_file = self:_get_main_file()
     if mk_file == nil then return end
 
+    local intern_edition
+    local linked_editions -- a list of already all used linked edition uid's
     
-    -- all ordered-chapters features needs a special timeline creation
-    -- linked-chapters, linked-editions, nested-ordered-chapters, linked-chapters-file
-    if self.used_features[MK_FEATURE.ordered_chapters] then
+    local run_time = 0
 
-        local extern_files_loaded = false
-        local linked_file, idx
-        local intern_edition
-        local link_list = {} -- a list with linked chapter items
-        local start_time, end_time
+    -- load files, only needed for linked-chapters, some content is located in other files
+    if self.used_features[MK_FEATURE.linked_chapters] then
+        local files = utils.readdir(self.init_dir, "files")
+        if not files then msg.error("Mk_Playback:_build_timelines()", "Could not read directory '"..self.init_dir.."'") return end
 
-        -- load files
-        local function load_files()
-            extern_files_loaded = true
-            local paths = utils.readdir(self.init_dir, "files")
-            if not paths then msg.error("Could not read directory '"..self.init_dir.."'") return end
-
-            -- loop over the files
-            for _, path in ipairs(paths) do
-                path = self.init_dir..path
-                -- check all paths, exclude the init_file        
-                if path ~= mk_file.path then
-                    local mkf = mkp.Matroska_Parser:new(path)
-                    if mkf.is_valid then
-                        table.insert(self.temp_files, mkf)
-                    end
+        -- loop over the files
+        for _, file in ipairs(files) do
+            local path = self.init_dir .. file
+            -- check all paths, exclude the init_file        
+            if path ~= mk_file.path then
+                local mkf = mkp.Matroska_Parser:new(path)
+                if mkf.is_valid and mkf.seg_uuid then
+                    table.insert(self.temp_files, mkf)
                 end
             end
         end
+    end
 
-        -- get linked file
-        local function get_linked_file(s_id)
-            -- search in mk_files first
-            for i, file in ipairs(self.mk_files) do
-                if file.seg_uuid == s_id then
-                    return file, i
-                end
-            end
-
-            -- search in temp_files
-            for i, file in ipairs(self.temp_files) do
-                if file.seg_uuid == s_id then
-                    table.insert(self.mk_files, file)
-                    table.remove(self.temp_files, i)
-                    return file, #self.mk_files
-                end
-            end
-            return nil
-        end
-
-        -- add linked_chapter
-        local function add_linked_chapter()
-            if linked_file == nil or start_time >= end_time then return end
-            table.insert(link_list, {s_t = start_time, e_t = end_time, path = linked_file.path})
-        end
-
-        -- process link_list
-        local function process_link_list()
-            --[[ it is possible to merge linked chapters if the timestamps are seamless
-            ]]
-
-            -- reference index for a linked chapter entry
-            local ref_idx = #link_list -- init last entry
-
-            -- loop backward over the list, start second to last 
-            for i = ref_idx -1, 1 , -1 do
-                -- check same file
-                if link_list[i].path == link_list[ref_idx].path then
-                    -- check times
-                    if link_list[i].e_t == link_list[ref_idx].s_t then
-                        link_list[ref_idx].s_t = link_list[i].s_t -- new start time
-                        table.remove(link_list, i)
-                        ref_idx = ref_idx - 1
-
-                    -- times do not match
-                    else
-                        ref_idx = i -- new ref index
-                    end
-                    
-                -- new file
-                else
-                    ref_idx = i -- new ref index
-                end
-            end
-
-            -- build the edl_path from the linked chapters
-            for _, lc in ipairs(link_list) do
-                intern_edition.edl_path = intern_edition.edl_path .. ("%%%d%%%s,%f,%f;"):format(lc.path:len(),
-                lc.path, lc.s_t / 1000000000, (lc.e_t -lc.s_t) / 1000000000)
+    -- get linked file
+    local function get_linked_file(s_id)
+        -- search in mk_files first
+        for i, file in ipairs(self.mk_files) do
+            if file.seg_uuid == s_id then
+                return file
             end
         end
 
-        -- process chapters
+        -- search in temp_files
+        for i, file in ipairs(self.temp_files) do
+            if file.seg_uuid == s_id then
+                table.insert(self.mk_files, file)
+                table.remove(self.temp_files, i)
+                return file
+            end
+        end
+
+        -- check init_file
+        if self.init_file.seg_uuid == s_id then
+            return self.init_file
+        end
+        return nil
+    end
+    
+    
+    -- process edition
+    local function process_edition(ed, nested_level, file)
+        -- prev_start_time: this var is used for non-ordered editions
+        -- without an end time it is not possible to calculate the duration
+        -- the duration of a chapter must be calculated from a next chapter's start time
+        -- for the last chapter is the duration calculated from the video(/file) duration
+        local prev_start_time = 0
+
+        -- check edition is hidden
+        local ed_is_hidden = ed:is_hidden()
+        -- check ordered edition
+        local ed_is_ordered = ed:is_ordered()
+        -- first_chap: boolean, used for non-ordered editions
+        local first_chap = true
+        -- added_chap_idx: integer, index of the chapter segment, used for non-ordered editions
+        local added_chap_idx
+
+        -- process chapter
         local function process_chapter(chp, level)
-            -- no process for disabled chapters
+            -- no process for disabled chapters, for the moment
             if chp:get_child(mk.chapters.ChapterFlagEnabled).value == 0 then return end
 
-            local c_seg_id = chp:find_child(mk.chapters.ChapterSegmentUUID)
-            if c_seg_id then c_seg_id = mkp.Matroska_Parser:_bin2hex(c_seg_id.value) end
-            local c_seg_edition_id = chp:find_child(mk.chapters.ChapterSegmentEditionUID)
-            if c_seg_edition_id then c_seg_edition_id = c_seg_edition_id.value end
+            -- start time
+            local start_time = chp:get_child(mk.chapters.ChapterTimeStart).value
 
-            -- need external files?
-            if not extern_files_loaded and c_seg_id then
-                load_files()
-            end
+            -- ordered chapter
+            if ed_is_ordered then
+                -- end time
+                local end_time = chp:find_child(mk.chapters.ChapterTimeEnd)
+                if end_time then end_time = end_time.value else end_time = 0 end
 
-            start_time = chp:get_child(mk.chapters.ChapterTimeStart).value
-            end_time = chp:find_child(mk.chapters.ChapterTimeEnd)
-            if end_time then end_time = end_time.value else end_time = 0 end
-                
-            -- linked-chapter
-            if c_seg_id then
-                linked_file, idx = get_linked_file(c_seg_id)
+                -- linked-chapter or linked-edition
+                local c_seg_id = chp:find_child(mk.chapters.ChapterSegmentUUID)
+                if c_seg_id then
+                    c_seg_id = mkp.Matroska_Parser:_bin2hex(c_seg_id.value)
+                    -- try to find the linked file
+                    local linked_file = get_linked_file(c_seg_id)
 
-                if linked_file then
-                    -- first linked file = main file
-                    if intern_edition.main_file_idx == 0 then
-                        intern_edition.main_file_idx = idx
+                    -- no linked file found
+                    if not linked_file then return end -- this skips also all nested chapters of this chapter
+
+                    -- linked-Edition
+                    local c_seg_edition_id = chp:find_child(mk.chapters.ChapterSegmentEditionUID)
+                    if c_seg_edition_id then
+                        --TODO: no chapters in the linked file
+                        if linked_file.Chapters == nil then
+                            -- no chapters no editions
+                            -- to skip this linked chapter is simple but I think it's better to use the entire file
+                            -- add a virtual chapter for that
+                            return -- skip fully for the moment
+                        end
+
+                        c_seg_edition_id = c_seg_edition_id.value
+
+                        -- check if the linked Edition exists in the linked file
+                        local linked_edition = linked_file.Chapters:get_edition(nil, c_seg_edition_id)
+                        if not linked_edition then return end -- invalid linking
+
+                        -- check endless loop, Edition UID is already in the list
+                        if linked_editions[c_seg_edition_id] then return end
+
+                        -- process the linked edition
+                        linked_editions[c_seg_edition_id] = true -- add this edition uid
+                        process_edition(linked_edition, level, linked_file)
+
+                    else -- linked-chapter, use chapter duration
+                        -- add chapter segment
+                        intern_edition:add_chapter_segment(chp, linked_file.path, run_time, level, ed_is_hidden)
+                        -- increase runtime
+                        if end_time > start_time then
+                            run_time = run_time + (end_time - start_time)
+                        end
                     end
 
-                    -- linked-edition
-                    if c_seg_edition_id then
-                        --TODO:
 
-                    else
-                        add_linked_chapter()
+                else -- no ChapterSegmentUUID -> normal ordered chapter
+                    -- add chapter segment
+                    intern_edition:add_chapter_segment(chp, file.path, run_time, level, ed_is_hidden)
+                    -- increase runtime
+                    if end_time > start_time then
+                        run_time = run_time + (end_time - start_time)
                     end
                 end
 
-            -- nested-ordered-chapters
-            else
-                linked_file = mk_file -- main file is used
-                add_linked_chapter()
+            
+            else -- non-ordered chapter
+                -- the run_time must be increased befor the chapter_segment is insert
+
+                -- increase run_time
+                if start_time > prev_start_time then
+                    run_time = run_time + (start_time - prev_start_time)
+                    prev_start_time = start_time -- new prev start time
+                end
+                -- add a chapter segment
+                added_chap_idx = intern_edition:add_chapter_segment(chp, file.path, run_time, level, ed_is_hidden)
+
+                -- set an end time for the prev chapter segment, start after first chapter
+                if not first_chap then
+                    intern_edition:add_chap_endtime(added_chap_idx -1, start_time)
+                end
             end
 
             -- nested chapters
@@ -779,46 +842,142 @@ function Mk_Playback:_build_timeline()
                 nchap, nc = chp:find_next_child(nc)
             end
         end
+        
 
-        local edition, e = mk_file.Chapters:find_child(mk.chapters.EditionEntry)
-        -- loop editions
-        while edition do
-            link_list = {} -- init link list empty
-            intern_edition = new_internal_edition_item()
-
-            -- ordered edition
-            if edition:get_child(mk.chapters.EditionFlagOrdered).value == 1 then
-                intern_edition.edl_path = "edl://!no_chapters;" -- init without chapters
-    
-                -- loop chapters
-                local chap, c = edition:find_child(mk.chapters.ChapterAtom)
-                while chap do
-                    process_chapter(chap, 0)
-                    chap, c = edition:find_next_child(c)
+        -- find first chapter
+        local chap, c = ed:find_child(mk.chapters.ChapterAtom)
+        
+        -- check first chapter
+        if chap then
+            -- check start time for non-ordered-editions
+            if not ed_is_ordered then
+                local stime = chap:get_child(mk.chapters.ChapterTimeStart).value
+                -- when stime is not 0 then add a virtual chapter in the chapter_timeline
+                if stime > 0 then
+                    intern_edition:add_virtual_segment(file.path, run_time, nested_level)
                 end
-
-                process_link_list()
-
-            -- non-ordered edition
-            else
-                intern_edition.edl_path = intern_edition.edl_path .. ("%%%d%%%s;"):format(mk_file.path:len(), mk_file.path)
             end
-
-            -- add internal edition
-            table.insert(self.internal_editions, intern_edition)
-
-            edition, e = mk_file.Chapters:find_next_child(e)
+        
+        else -- there is no chapter in the edition
+            -- add a virtual segment of the entire video duration
+            local duration = file:get_video_duration()
+            intern_edition:add_virtual_segment(file.path, run_time, nested_level, 0, duration)
+            run_time = run_time + duration -- increase run_time
+            return
         end
 
-        self.edl_path = self.internal_editions[self.current_edition_idx + 1].edl_path
+        -- loop chapters
+        while chap do
+            process_chapter(chap, nested_level)
+            first_chap = false
+            chap, c = ed:find_next_child(c)
+        end
 
-        return
+        -- non-ordered editions, increase the run_time using the video duration to get the duration for the last chapter
+        if not ed_is_ordered then
+            local duration = file:get_video_duration()
+            if duration > prev_start_time then
+                run_time = run_time + (duration - prev_start_time)
+            end
+
+            -- set an end time for the last chapter
+            intern_edition:add_chap_endtime(added_chap_idx, duration)
+        end
+
     end
 
-    -- basic-chapters and nested-chapters, can be loaded without timeline generation
-    -- also it is fine to use the entire file duration instead the video duration
-    self.edl_path = ("edl://!no_chapters;%%%d%%%s;"):format(mk_file.path:len(), mk_file.path)
+
+    -- edition_idx, an index of an edition in the Matroksa file
+    local edition_idx = 0 -- this value is needed for Hard-Linking to find the correct edition in other files
+
+    -- process hard-linked files
+    local function process_hard_linked_files()
+        -- found edition: boolean, true when the edition could be found
+        local found_edition
+
+        -- process all files exclude the first one
+        for i = 2, #self.mk_files do
+            found_edition = false
+
+            -- check if chapters are present
+            if self.mk_files[i].Chapters then
+                local ed = self.mk_files[i].Chapters:get_edition(edition_idx)
+                if ed and not ed:is_ordered() then -- no ordered-chapter for the moment
+                    -- only one scenario where ordered chapters are fine when the times are seamless until the video duration ends
+
+                    found_edition = true
+                    process_edition(ed, 0, self.mk_files[i])
+                end
+            end
+
+            -- no chapters in the file or not the correct edition index or the edition is ordered
+            if not found_edition then
+                -- add a virtual segment of the entire video duration
+                local duration = self.mk_files[i]:get_video_duration()
+                intern_edition:add_virtual_segment(self.mk_files[i].path, run_time, 0, 0, duration)
+                run_time = run_time + duration -- increase run_time
+            end
+        end
+    end
+
+
+    -- loop main file editions
+    local edition, e = mk_file.Chapters:find_child(mk.chapters.EditionEntry)
+    while edition do
+        run_time = 0
+        edition_idx = edition_idx + 1
+        intern_edition = Internal_Edition:new()
+        intern_edition.ordered = edition:is_ordered()
+
+        -- ordered edition
+        if intern_edition.ordered then
+            linked_editions = {} -- init empty array
+            local uid = edition:find_child(mk.chapters.EditionUID)
+            if uid then
+                linked_editions[uid.value] = true -- add own UID to prevent endless looping
+            end
+        end
+
+        -- check for Hard-Linking
+        if self.used_features[MK_FEATURE.hard_linking] then
+            --  no ordered editions in the main file allowed
+            if intern_edition.ordered then
+                -- add a virtual segment of the entire video duration
+                local duration = mk_file:get_video_duration()
+                intern_edition:add_virtual_segment(mk_file.path, run_time, 0, 0, duration)
+                run_time = run_time + duration -- increase run_time
+
+            else -- non-ordered edition
+                process_edition(edition, 0, mk_file) -- process the main edition
+            end
+
+            -- process all hard-linked file editions
+            process_hard_linked_files()
+            -- set intern_edition ordered to true, this is needed to generate the EDL path correctly
+            intern_edition.ordered = true
+
+
+        else -- no Hard-Linking
+            process_edition(edition, 0, mk_file)
+        end
+        
+        -- save the run_time
+        intern_edition.duration = run_time
+        -- create edl_path
+        intern_edition:create_edl_path()
+
+        -- add internal edition
+        table.insert(self.internal_editions, intern_edition)
+
+        edition, e = mk_file.Chapters:find_next_child(e)
+    end
+
+    -- set active edl_path
+    self.edl_path = self.internal_editions[self.current_edition_idx].edl_path
 end
+
+
+
 
 -- export --
 return {
