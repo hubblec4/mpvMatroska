@@ -16,6 +16,8 @@ Zum Testen der Matroska Features nutze ich mein [Matroska-Playback](https://gith
 - Reihenfolgentreue Kapitel
 - Verschachtelte-Reihenfolgentreue Kapitel
 - Verknüpfende Kapitel (mit Kapitel Dauer)
+- Verknüpfte-Version Kapitel
+- Multiple Kapitelnamen
 
 ### Installation
 
@@ -24,4 +26,8 @@ Damit aber alles einfach bleibt nutzt mpvMatroska das `mpv Ordner System` für S
 
 Alles was man tun muss, ist den mpvMatroska Ordner in den mpv Scripte Ordner kopieren.
 
-Ebenso ist es möglich mpvMatroska auch als Single-Script zu verwenden, wobei dann die benötigten Module im mpv `~~/script-modules/` vorhanden sein müssen.
+Ebenso ist es möglich mpvMatroska auch als Single-Script zu verwenden, wobei dann die benötigten Module im mpv `~~/script-modules/` Ordner vorhanden sein müssen.
+
+#### Test Version
+
+Für den moment kann hier eine [Test Version](https://gleitz.info/index.php?attachment/100233-mpvmatroska-zip/) heruntergeladen werden.

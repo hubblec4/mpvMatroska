@@ -16,6 +16,8 @@ To test the Matroska features I use my [Matroska-Playback](https://github.com/hu
 - Ordered chapters
 - Nested-Ordered chapters
 - Linking chapters (with chapter duration)
+- Linked-Edition chapters
+- Multiple chapter names
 
 ### Installation
 
@@ -24,4 +26,8 @@ But to keep everything simple, mpvMatroska uses the `mpv folder system` for scri
 
 All you have to do is copy the mpvMatroska folder into the mpv-scripts folder.
 
-It is also possible to use mpvMatroska as a single script, in which case the required modules must be available in mpv `~~/script-modules/`.
+It is also possible to use mpvMatroska as a single script, in which case the required modules must be available in mpv `~~/script-modules/` folder.
+
+#### Test version
+
+For the moment, a [test version](https://gleitz.info/index.php?attachment/100233-mpvmatroska-zip/) can be downloaded here.
