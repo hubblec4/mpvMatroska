@@ -4,7 +4,7 @@
 
 local mk = require "matroska"
 local mkp = require "matroskaparser"
---local mp = require "mp"
+local mp = require "mp"
 local msg = require "mp.msg"
 local utils = require "mp.utils"
 
@@ -342,6 +342,30 @@ function Mk_Playback:get_mpv_chapters(init)
     return intern_ed:get_mpv_chapter_list(langs)
 end
 
+
+-- mpv events ------------------------------------------------------------------
+
+-- mpv_on_audio_change: event when in mpv the audio track is changed
+function Mk_Playback:mpv_on_audio_change(new_id)
+	-- no audio selected
+    if new_id == nil then
+        self.mpv_current_aid = 0
+        return
+    end
+    -- same audio id
+	if new_id == self.mpv_current_aid then return end
+	
+	self.mpv_current_aid = new_id -- set new audio id
+
+    -- check multiple chapter names
+    if self.used_features[MK_FEATURE.multiple_chapter_names] then
+        -- set new chapter names
+        local c_list = self:get_mpv_chapters()
+        if c_list then
+            mp.set_property_native("chapter-list", c_list)
+        end
+    end
+end
 
 -- on_edition_change: event when in mpv the edititon is changed
 function Mk_Playback:on_edition_change(new_idx)

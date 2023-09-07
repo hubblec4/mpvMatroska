@@ -11,6 +11,11 @@ mp.set_property_native("ordered-chapters", false)
 msg.debug("Matroska Playback loded: ", mkplayback ~= nil)
 
 
+-- mp_observe_audio_id
+local function mp_observe_audio_id(_, val)
+	mkplay:mpv_on_audio_change(val)
+end
+
 
 local function mp_file_loaded()
     -- get the stream id's
@@ -23,6 +28,9 @@ local function mp_file_loaded()
 	msg.debug("Matroska Playback: init chapters done")
 	
 	mp.unregister_event(mp_file_loaded)
+
+    -- register audio observation
+    mp.observe_property("current-tracks/audio/id", "number", mp_observe_audio_id)
 end
 
 
