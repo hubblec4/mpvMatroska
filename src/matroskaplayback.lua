@@ -295,7 +295,8 @@ end
 
 -- get_mpv_chapters: returns the mpv chapters list
 -- @param init: boolean, is used for initialization reason
-function Mk_Playback:get_mpv_chapters(init)
+-- @param pref_subs: boolean, is used for subtitle change to use this language first
+function Mk_Playback:get_mpv_chapters(init, pref_subs)
     local file, trk, lng
     local langs = {}
     local intern_ed = self.internal_editions[self.current_edition_idx]
@@ -319,7 +320,12 @@ function Mk_Playback:get_mpv_chapters(init)
             if trk then
                 lng = trk:get_language()
                 if self.available_chapters_langs[lng] then
-                    table.insert(langs, lng)
+                    -- check pref_subs
+                    if pref_subs then
+                        table.insert(langs, 1, lng) -- add in first positon
+                    else
+                        table.insert(langs, lng)
+                    end
                 end
             end
         end
@@ -361,6 +367,28 @@ function Mk_Playback:mpv_on_audio_change(new_id)
     if self.used_features[MK_FEATURE.multiple_chapter_names] then
         -- set new chapter names
         local c_list = self:get_mpv_chapters()
+        if c_list then
+            mp.set_property_native("chapter-list", c_list)
+        end
+    end
+end
+
+-- mpv_on_subtitle_change: event when in mpv the subtitle track is changed
+function Mk_Playback:mpv_on_subtitle_change(new_id)
+	-- no subtitle selected
+    if new_id == nil then
+        self.mpv_current_sid = 0
+        return
+    end
+    -- same subtitle id
+	if new_id == self.mpv_current_sid then return end
+	
+	self.mpv_current_sid = new_id -- set new subtitle id
+
+    -- check multiple chapter names
+    if self.used_features[MK_FEATURE.multiple_chapter_names] then
+        -- set new chapter names
+        local c_list = self:get_mpv_chapters(false, true)
         if c_list then
             mp.set_property_native("chapter-list", c_list)
         end

@@ -16,6 +16,11 @@ local function mp_observe_audio_id(_, val)
 	mkplay:mpv_on_audio_change(val)
 end
 
+-- mp_observe_subtitle_id
+local function mp_observe_subtitle_id(_, val)
+	mkplay:mpv_on_subtitle_change(val)
+end
+
 
 local function mp_file_loaded()
     -- get the stream id's
@@ -31,6 +36,8 @@ local function mp_file_loaded()
 
     -- register audio observation
     mp.observe_property("current-tracks/audio/id", "number", mp_observe_audio_id)
+    -- register subtitle observation
+    mp.observe_property("current-tracks/sub/id", "number", mp_observe_subtitle_id)
 end
 
 
