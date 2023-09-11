@@ -352,12 +352,34 @@ function Mk_Playback:get_mpv_chapters(init, pref_subs)
 end
 
 
--- edition_change: returns boolean, a method to change the edition
-function Mk_Playback:edition_change(new_idx)
-    return self:_edition_changing(new_idx)
+-- edition_changing: returns boolean, a method to change the edition
+function Mk_Playback:edition_changing(new_idx)
+    if new_idx == nil or new_idx == self.current_edition_idx or new_idx > #self.internal_editions
+    or not self.used_features[MK_FEATURE.multiple_editions] then return false end
+
+    -- new_idx: integer, 0 means toggle, all other values means the index
+    if new_idx == 0 then
+        -- toggle editions
+        if self.current_edition_idx == #self.internal_editions then -- is already last edition
+            self.current_edition_idx = 1 -- set to first edition
+        else
+            self.current_edition_idx = self.current_edition_idx + 1 -- next index
+        end
+
+    else
+        self.current_edition_idx = new_idx -- set new index
+    end
+
+    -- set active edl_path
+    self.edl_path = self.internal_editions[self.current_edition_idx].edl_path
+
+    self.edition_is_changing = true -- changing edition is now true
+
+    return true
+    
+    --TODO: for later: check switching Angle-Editions
+    -- -> Bluray or DVD Angle Movies all Editions have the same duration. after a change restore the position
 end
-
-
 
 
 -- mpv events ------------------------------------------------------------------
@@ -1034,35 +1056,6 @@ function Mk_Playback:_build_timelines()
 
     -- set active edl_path
     self.edl_path = self.internal_editions[self.current_edition_idx].edl_path
-end
-
-
--- _edition_changing (private): method to change an edition
-function Mk_Playback:_edition_changing(new_idx)
-    if new_idx == nil or new_idx == self.current_edition_idx or new_idx > #self.internal_editions then return false end
-
-    -- new_idx: integer, 0 means toggle all other values means the index
-    if new_idx == 0 then
-        -- toggle editions
-        if self.current_edition_idx == #self.internal_editions then -- is already last edition
-            self.current_edition_idx = 1 -- set to first edition
-        else
-            self.current_edition_idx = self.current_edition_idx + 1 -- next index
-        end
-
-    else
-        self.current_edition_idx = new_idx -- set new index
-    end
-
-    -- set active edl_path
-    self.edl_path = self.internal_editions[self.current_edition_idx].edl_path
-
-    self.edition_is_changing = true -- changing edition is now true
-
-    return true
-    
-    --TODO: for later: check switching Angle-Editions
-    -- -> Bluray or DVD Angle Movies all Editins have the same duration. after a change restore the position
 end
 
 

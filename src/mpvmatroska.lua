@@ -25,9 +25,9 @@ end
 
 -- key bindings ----------------------------------------------------------------
 
--- edition change with "E"
+-- edition change with short-cut "E"
 local function mp_edition_change()
-	if not mkplay:edition_change(0) then return end -- toggle edition
+	if not mkplay:edition_changing(0) then return end -- toggle edition
 	-- load the edition with the new edl path
     mp.commandv("loadfile", mkplay.edl_path, "replace")
 end
@@ -45,7 +45,11 @@ local function mp_file_loaded()
 	mp.set_property_native("chapter-list", mkplay:get_mpv_chapters(true))
 	msg.debug("Matroska Playback: init chapters done")
 	
-	mp.unregister_event(mp_file_loaded)
+    -- check edition change
+	if mkplay.edition_is_changing then
+        mkplay.edition_is_changing = false -- end of edition changing
+        return
+    end
 
     -- register audio observation
     mp.observe_property("current-tracks/audio/id", "number", mp_observe_audio_id)
@@ -62,11 +66,7 @@ msg.info("Matroska Playback: on_load")
     -- mkplay is already running
     if mkplay then
         -- check edition change
-        if mkplay.edition_is_changing then
-            mp.set_property_native("chapter-list", mkplay:get_mpv_chapters(true)) -- set new chapters
-            mkplay.edition_is_changing = false -- end of edition changing
-            return
-        end
+        if mkplay.edition_is_changing then return end
 
         -- close the current instance
         mkplay:close()
