@@ -942,7 +942,7 @@ function Mk_Playback:_build_timelines()
         
         else -- there is no chapter in the edition
             -- add a virtual segment of the entire video duration
-            local duration = file:get_video_duration()
+            local duration = file:get_video_duration() or file.seg_duration
             intern_edition:add_virtual_segment(file.path, run_time, nested_level, 0, duration)
             run_time = run_time + duration -- increase run_time
             return
@@ -957,7 +957,7 @@ function Mk_Playback:_build_timelines()
 
         -- non-ordered editions, increase the run_time using the video duration to get the duration for the last chapter
         if not ed_is_ordered then
-            local duration = file:get_video_duration()
+            local duration = file:get_video_duration() or file.seg_duration
             if duration > prev_start_time then
                 run_time = run_time + (duration - prev_start_time)
             end
@@ -995,7 +995,7 @@ function Mk_Playback:_build_timelines()
             -- no chapters in the file or not the correct edition index or the edition is ordered
             if not found_edition then
                 -- add a virtual segment of the entire video duration
-                local duration = self.mk_files[i]:get_video_duration()
+                local duration = self.mk_files[i]:get_video_duration() or self.mk_files[i].seg_duration
                 intern_edition:add_virtual_segment(self.mk_files[i].path, run_time, 0, 0, duration)
                 run_time = run_time + duration -- increase run_time
             end
@@ -1025,7 +1025,7 @@ function Mk_Playback:_build_timelines()
             --  no ordered editions in the main file allowed
             if intern_edition.ordered then
                 -- add a virtual segment of the entire video duration
-                local duration = mk_file:get_video_duration()
+                local duration = mk_file:get_video_duration() or mk_file.seg_duration
                 intern_edition:add_virtual_segment(mk_file.path, run_time, 0, 0, duration)
                 run_time = run_time + duration -- increase run_time
 
