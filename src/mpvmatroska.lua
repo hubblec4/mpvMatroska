@@ -5,6 +5,7 @@ local mkplayback = require "matroskaplayback"
 local mkplay
 
 
+
 -- disable mpv's internal ordered-chapters support!
 mp.set_property_native("ordered-chapters", false)
 
@@ -20,6 +21,18 @@ end
 local function mp_observe_subtitle_id(_, val)
 	mkplay:mpv_on_subtitle_change(val)
 end
+
+
+-- key bindings ----------------------------------------------------------------
+
+-- edition change with "E"
+local function mp_edition_change()
+	if not mkplay:edition_change(0) then return end -- toggle edition
+	-- load the edition with the new edl path
+    mp.commandv("loadfile", mkplay.edl_path, "replace")
+end
+
+
 
 
 local function mp_file_loaded()
@@ -38,12 +51,26 @@ local function mp_file_loaded()
     mp.observe_property("current-tracks/audio/id", "number", mp_observe_audio_id)
     -- register subtitle observation
     mp.observe_property("current-tracks/sub/id", "number", mp_observe_subtitle_id)
+
+    -- key binding: edition_change, override mpv's default "E" key for changing the editions
+    mp.add_key_binding("E", "edition_change", mp_edition_change)
 end
 
 
 local function mp_on_load()
 msg.info("Matroska Playback: on_load")
-    if mkplay then mkplay:close() end
+    -- mkplay is already running
+    if mkplay then
+        -- check edition change
+        if mkplay.edition_is_changing then
+            mp.set_property_native("chapter-list", mkplay:get_mpv_chapters(true)) -- set new chapters
+            mkplay.edition_is_changing = false -- end of edition changing
+            return
+        end
+
+        -- close the current instance
+        mkplay:close()
+    end
 
     mkplay = mkplayback.Mk_Playback:new(mp.get_property("stream-open-filename", ""))
 	
@@ -65,11 +92,7 @@ end
 
 
 
-local function mp_observe_current_edition(_, val)
-	mkplay:on_edition_change(val)
-	
-	mp.set_property_native("chapter-list", mkplay.mpv_chapters)
-end
+
 
 
 

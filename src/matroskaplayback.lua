@@ -269,7 +269,10 @@ local Mk_Playback = {
     current_edition_idx = 0,
 
     -- internal_editions: array, a list of edition items with useful info
-    internal_editions = {}
+    internal_editions = {},
+
+    -- edition_is_changing: boolean
+    edition_is_changing = false,
 }
 
 -- constructor
@@ -281,13 +284,13 @@ function Mk_Playback:new(path)
     elem.mk_files = {}
     elem.temp_files = {}
     elem.used_features = {}
-    elem.current_chapters_lang = {}
+    elem.available_chapters_langs = {}
     elem.internal_editions = {}
     elem:_scan(path)
     return elem
 end
 
--- closs: clean some var's
+-- close: clean some var's
 function Mk_Playback:close()
     if self.init_file then self.init_file:close() end
     self:_close_files()
@@ -349,6 +352,14 @@ function Mk_Playback:get_mpv_chapters(init, pref_subs)
 end
 
 
+-- edition_change: returns boolean, a method to change the edition
+function Mk_Playback:edition_change(new_idx)
+    return self:_edition_changing(new_idx)
+end
+
+
+
+
 -- mpv events ------------------------------------------------------------------
 
 -- mpv_on_audio_change: event when in mpv the audio track is changed
@@ -395,10 +406,7 @@ function Mk_Playback:mpv_on_subtitle_change(new_id)
     end
 end
 
--- on_edition_change: event when in mpv the edititon is changed
-function Mk_Playback:on_edition_change(new_idx)
-    self.current_edition_idx = new_idx
-end
+
 
 
 -- private section -------------------------------------------------------------
@@ -1026,6 +1034,35 @@ function Mk_Playback:_build_timelines()
 
     -- set active edl_path
     self.edl_path = self.internal_editions[self.current_edition_idx].edl_path
+end
+
+
+-- _edition_changing (private): method to change an edition
+function Mk_Playback:_edition_changing(new_idx)
+    if new_idx == nil or new_idx == self.current_edition_idx or new_idx > #self.internal_editions then return false end
+
+    -- new_idx: integer, 0 means toggle all other values means the index
+    if new_idx == 0 then
+        -- toggle editions
+        if self.current_edition_idx == #self.internal_editions then -- is already last edition
+            self.current_edition_idx = 1 -- set to first edition
+        else
+            self.current_edition_idx = self.current_edition_idx + 1 -- next index
+        end
+
+    else
+        self.current_edition_idx = new_idx -- set new index
+    end
+
+    -- set active edl_path
+    self.edl_path = self.internal_editions[self.current_edition_idx].edl_path
+
+    self.edition_is_changing = true -- changing edition is now true
+
+    return true
+    
+    --TODO: for later: check switching Angle-Editions
+    -- -> Bluray or DVD Angle Movies all Editins have the same duration. after a change restore the position
 end
 
 
