@@ -33,6 +33,12 @@ local function get_directory(path)
     return path:match("^(.+[/\\])[^/\\]+[/\\]?$") or ""
 end
 
+-- gets the file name of the given path
+local function get_filename(path)
+    return path:match("^.+[/\\](.+)$") or path
+end
+
+
 
 -- -----------------------------------------------------------------------------
 -- Internal Edition Class ------------------------------------------------------
@@ -40,8 +46,8 @@ end
 
 local Internal_Edition = {
     edl_path = "",
-    --main_file_idx = 0, -- main_file_idx = 0 means no extern file, init_file is main file
-    current_edition_lang = "",
+    current_lang = "",
+    current_name = "",
     duration = 0,
     ordered = false, -- edition use ordered chapters?
 }
@@ -51,7 +57,6 @@ function Internal_Edition:new()
     local elem = {}
     setmetatable(elem, self)
     self.__index = self
-    elem.current_edition_lang = ""
     elem.chapter_timeline = {} -- array, is a linear chapter list of all used chapters, currently exluded disabled chapters
     return elem
 end
@@ -296,13 +301,18 @@ function Mk_Playback:close()
     self:_close_files()
 end
 
--- get_mpv_chapters: returns the mpv chapters list
+-- current_edition: returns the current used internal edition
+function Mk_Playback:current_edition()
+    if self.current_edition_idx == 0 then return nil end
+    return self.internal_editions[self.current_edition_idx]
+end
+
+-- get_mpv_chapters: returns the mpv chapters list and sets the edition names
 -- @param init: boolean, is used for initialization reason
 -- @param pref_subs: boolean, is used for subtitle change to use this language first
 function Mk_Playback:get_mpv_chapters(init, pref_subs)
     local file, trk, lng
     local langs = {}
-    local intern_ed = self.internal_editions[self.current_edition_idx]
 
     file = self:_get_main_file(true) -- get main file for tracks
     if file then
@@ -348,7 +358,17 @@ function Mk_Playback:get_mpv_chapters(init, pref_subs)
         end
     end
 
-    return intern_ed:get_mpv_chapter_list(langs)
+    -- set edition names
+    if init or self.used_features[MK_FEATURE.multiple_edition_names] then
+        self:_set_edition_names(langs)
+    end
+
+    -- get the mpv chapter list
+    if init or self.used_features[MK_FEATURE.multiple_chapter_names] then
+        return self:current_edition():get_mpv_chapter_list(langs)
+
+    else return nil
+    end
 end
 
 
@@ -396,14 +416,8 @@ function Mk_Playback:mpv_on_audio_change(new_id)
 	
 	self.mpv_current_aid = new_id -- set new audio id
 
-    -- check multiple chapter names
-    if self.used_features[MK_FEATURE.multiple_chapter_names] then
-        -- set new chapter names
-        local c_list = self:get_mpv_chapters()
-        if c_list then
-            mp.set_property_native("chapter-list", c_list)
-        end
-    end
+    -- check and set multiple names
+    self:_change_edition_chapter_names()
 end
 
 -- mpv_on_subtitle_change: event when in mpv the subtitle track is changed
@@ -418,16 +432,17 @@ function Mk_Playback:mpv_on_subtitle_change(new_id)
 	
 	self.mpv_current_sid = new_id -- set new subtitle id
 
-    -- check multiple chapter names
-    if self.used_features[MK_FEATURE.multiple_chapter_names] then
-        -- set new chapter names
-        local c_list = self:get_mpv_chapters(false, true)
-        if c_list then
-            mp.set_property_native("chapter-list", c_list)
-        end
-    end
+    -- check and set multiple names
+    self:_change_edition_chapter_names(true)
 end
 
+
+
+-- mpv_set_media_title: a method to change the media title in the OSC and mpv window
+function Mk_Playback:mpv_set_media_title()
+	local title = get_filename(self:_get_main_file().path) .. " {" .. self:current_edition().current_name .. "}"
+	mp.set_property("force-media-title", title)
+end
 
 
 
@@ -511,7 +526,7 @@ function Mk_Playback:_analyze_chapters()
     edition, self.current_edition_idx = mk_file.Chapters:get_default_edition()
 
     -- check multiple editions, try to find a second edition
-    if mk_file.Chapters:get_edition(1)  then
+    if mk_file.Chapters:get_edition(2)  then
         self.used_features[MK_FEATURE.multiple_editions] = true
     end
 
@@ -1058,8 +1073,63 @@ function Mk_Playback:_build_timelines()
     self.edl_path = self.internal_editions[self.current_edition_idx].edl_path
 end
 
+-- _set_edition_names (private): a method to change the edition depend on the given languages
+function Mk_Playback:_set_edition_names(langs)
+    -- langs: array with language codes, when nil the first name is used
+    if langs == nil then langs = {""} end -- no language code -> first name
 
+    local c_name
+    local mk_file = self:_get_main_file()
+    if not mk_file then return end
 
+    -- loop of the internal editions
+    for i = 1, #self.internal_editions do
+        c_name = ""
+
+        -- find edition name
+        for _, lng in ipairs(langs) do
+            -- check lng, nothing todo if the current_lang match
+            if lng == self.internal_editions[i].current_lang then break end
+
+            c_name = mk_file:get_edition_name(i, lng, false, true)
+
+            -- name found
+            if c_name ~= "" then
+                self.internal_editions[i].current_name = c_name
+                self.internal_editions[i].current_lang = lng -- set new language
+                break
+            end
+        end
+
+        -- no new name found and current_name is empty
+        if c_name == "" and self.internal_editions[i].current_name == "" then
+            c_name = mk_file:get_edition_name(i, "") -- get first edition name
+            -- check again, name could be empty -> no chapter Tag/Display or a really empty name
+            if c_name == "" then c_name = "Edition " .. i end
+            self.internal_editions[i].current_name = c_name
+            self.internal_editions[i].current_lang = ""
+        end
+        
+    end
+end
+
+-- _change_edition_chapter_names (private): set new names
+function Mk_Playback:_change_edition_chapter_names(pref_sub_lang)
+    -- check multiple chapter/edition names
+    if self.used_features[MK_FEATURE.multiple_chapter_names]
+    or self.used_features[MK_FEATURE.multiple_edition_names] then
+        -- set new chapter and edition names
+        local c_list = self:get_mpv_chapters(false, pref_sub_lang)
+        if c_list then
+            mp.set_property_native("chapter-list", c_list)
+        end
+    end
+
+    -- set new media title 
+    if self.used_features[MK_FEATURE.multiple_edition_names] then
+        self:mpv_set_media_title()
+    end
+end
 
 -- export --
 return {

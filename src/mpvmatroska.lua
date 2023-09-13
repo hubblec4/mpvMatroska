@@ -40,14 +40,18 @@ local function mp_file_loaded()
     mkplay.mpv_current_vid = mp.get_property_native("current-tracks/video/id")
     mkplay.mpv_current_aid = mp.get_property_native("current-tracks/audio/id")
     mkplay.mpv_current_sid = mp.get_property_native("current-tracks/sub/id")
+    
     -- init chapters
-    --mp.set_property_native("edition-list", mkplay.mpv_editions)
 	mp.set_property_native("chapter-list", mkplay:get_mpv_chapters(true))
 	msg.debug("Matroska Playback: init chapters done")
 	
+    -- set media title
+    mkplay:mpv_set_media_title()
+
     -- check edition change
 	if mkplay.edition_is_changing then
         mkplay.edition_is_changing = false -- end of edition changing
+        mp.osd_message(mkplay:current_edition().current_name)
         return
     end
 
