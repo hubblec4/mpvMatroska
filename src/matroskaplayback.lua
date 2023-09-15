@@ -553,7 +553,7 @@ function Mk_Playback:_analyze_chapters()
     local mk_file = self:_get_main_file()
     self.available_chapters_langs = {}
     if mk_file == nil or mk_file.Chapters == nil then
-        self.current_edition_idx = 0
+        self.current_edition_idx = 1
         return
     end
 
@@ -1060,8 +1060,38 @@ function Mk_Playback:_build_timelines()
     end
 
 
+    local edition, e
+
+    -- check Chapters and find first edition
+    if mk_file.Chapters then
+        edition, e = mk_file.Chapters:find_child(mk.chapters.EditionEntry)
+
+    else -- no Chapters in the file
+
+        -- create a internal edition with a virtual segment of the file
+        intern_edition = Internal_Edition:new()
+        local duration = mk_file:get_video_duration() or mk_file.seg_duration
+        intern_edition:add_virtual_segment(mk_file.path, run_time, 0, 0, duration)
+        run_time = run_time + duration -- increase run_time
+
+        -- check for Hard-Linking
+        if self.used_features[MK_FEATURE.hard_linking] then
+            edition_idx = 1
+            -- process all hard-linked file editions
+            process_hard_linked_files()
+            -- set intern_edition ordered to true, this is needed to generate the EDL path correctly
+            intern_edition.ordered = true
+        end
+
+        -- save the run_time
+        intern_edition.duration = run_time
+        -- create edl_path
+        intern_edition:create_edl_path()
+        -- add internal edition
+        table.insert(self.internal_editions, intern_edition)
+    end
+
     -- loop main file editions
-    local edition, e = mk_file.Chapters:find_child(mk.chapters.EditionEntry)
     while edition do
         run_time = 0
         edition_idx = edition_idx + 1
@@ -1104,7 +1134,6 @@ function Mk_Playback:_build_timelines()
         intern_edition.duration = run_time
         -- create edl_path
         intern_edition:create_edl_path()
-
         -- add internal edition
         table.insert(self.internal_editions, intern_edition)
 
