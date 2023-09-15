@@ -32,9 +32,11 @@ For the moment, a [test version](https://gleitz.info/index.php?attachment/100235
 - Linked-Edition chapters
 - Multiple chapter names
 - Multiple edition names
+- Video rotation (with `ProjectionPoseRoll` element)
 
 ## mpvMatroska features
 
 - Automatic switching of edition and chapter names when the audio or subtitle track is changed
 - Improved title display: the current edition name is appended to the file name
 - Correct edition list: the standard short-cut "E" is processed internally using its own switching method
+- Video rotation: with the Matroska Tags (not official in the Matroska specifications)

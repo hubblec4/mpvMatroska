@@ -32,9 +32,11 @@ Für den moment kann hier eine [Test Version](https://gleitz.info/index.php?atta
 - Verknüpfte-Version Kapitel
 - Multiple Kapitelnamen
 - Multiple Versionsnamen
+- Video Rotation (mit `ProjectionPoseRoll` Element)
 
 ## mpvMatroska Features
 
 - Automatisches Umschalten der Versions- und Kapitel Namen wenn die Audio- oder Untertitelspur gewechselt wird
 - Verbesserte Titel Anzeige: der aktuelle Versionsname wird an den Dateinamen angehängt
 - Korrekte Versionen Liste: der Standard Short-Cut "E" wird intern mit einer eigenen Durchschalt-Methode verarbeitet
+- Video Rotation: mit den Matroska Tags (nicht offiziell in den Matroska Spezifikationen)
