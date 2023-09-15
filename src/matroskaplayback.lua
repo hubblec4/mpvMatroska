@@ -402,7 +402,49 @@ function Mk_Playback:edition_changing(new_idx)
 end
 
 
+-- video_rotation: a method to rotate automatically the current video
+function Mk_Playback:video_rotation()
+    if self.mpv_current_vid == 0 then return end
+    local mk_file = self:_get_main_file(true)
+    if not mk_file then return end
+
+    -- check rotation settings
+    local rotate, native = mk_file:get_video_rotation(self.mpv_current_vid)
+
+    -- check native: a native rotate vaule is a float from -180.0 to 180.0
+    if native then
+        -- first we need an integer, and second the negative values must be transformed
+        rotate = math.floor(rotate)
+
+        -- check negative numbers
+        if rotate < 0 then
+            rotate = rotate + 360
+        end
+    end
+
+    -- send the mpv rotate command
+    if mp.get_property_number("video-rotate") ~= rotate then
+		mp.set_property_number("video-rotate", rotate)
+	end
+end
+
 -- mpv events ------------------------------------------------------------------
+
+-- mpv_on_video_change: event when in mpv the video track is changed
+function Mk_Playback:mpv_on_video_change(new_id)
+	-- no video selected
+    if new_id == nil then
+        self.mpv_current_vid = 0
+        return
+    end
+    -- same video id
+	if new_id == self.mpv_current_vid then return end
+	
+	self.mpv_current_vid = new_id -- set new video id
+
+    -- check video rotation
+    self:video_rotation()
+end
 
 -- mpv_on_audio_change: event when in mpv the audio track is changed
 function Mk_Playback:mpv_on_audio_change(new_id)

@@ -12,6 +12,11 @@ mp.set_property_native("ordered-chapters", false)
 msg.debug("Matroska Playback loded: ", mkplayback ~= nil)
 
 
+-- mp_observe_video_id
+local function mp_observe_video_id(_, val)
+	mkplay:mpv_on_video_change(val)
+end
+
 -- mp_observe_audio_id
 local function mp_observe_audio_id(_, val)
 	mkplay:mpv_on_audio_change(val)
@@ -40,6 +45,9 @@ local function mp_file_loaded()
     mkplay.mpv_current_vid = mp.get_property_native("current-tracks/video/id")
     mkplay.mpv_current_aid = mp.get_property_native("current-tracks/audio/id")
     mkplay.mpv_current_sid = mp.get_property_native("current-tracks/sub/id")
+
+    -- check video rotation
+    mkplay:video_rotation()
     
     -- init chapters
 	mp.set_property_native("chapter-list", mkplay:get_mpv_chapters(true))
@@ -55,6 +63,8 @@ local function mp_file_loaded()
         return
     end
 
+    -- register video observation
+    mp.observe_property("current-tracks/video/id", "number", mp_observe_video_id)
     -- register audio observation
     mp.observe_property("current-tracks/audio/id", "number", mp_observe_audio_id)
     -- register subtitle observation
