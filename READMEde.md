@@ -20,7 +20,7 @@ Ebenso ist es möglich mpvMatroska auch als Single-Script zu verwenden, wobei da
 
 #### Test Version
 
-Für den moment kann hier eine [Test Version](https://gleitz.info/index.php?attachment/100235-mpvmatroska-zip/) heruntergeladen werden.
+Für den moment kann hier eine [Test Version](https://gleitz.info/index.php?attachment/100236-mpvmatroska-zip/) heruntergeladen werden.
 
 ## funktionierende Matroska Features
 
@@ -40,3 +40,20 @@ Für den moment kann hier eine [Test Version](https://gleitz.info/index.php?atta
 - Verbesserte Titel Anzeige: der aktuelle Versionsname wird an den Dateinamen angehängt
 - Korrekte Versionen Liste: der Standard Short-Cut "E" wird intern mit einer eigenen Durchschalt-Methode verarbeitet
 - Video Rotation: mit den Matroska Tags (nicht offiziell in den Matroska Spezifikationen)
+- Matroska Inhaltsgruppierung: noch nicht offiziell in den Matroska Spezifikationen enthalten
+
+### Matroska Inhaltsgruppierung
+
+Bei dieser Matroska Eigenschaft geht es darum den Inhalt in einer Matroska Datei sinnvoll zu gruppieren.
+Der Inhalt sind alle Spurtypen sowie die Versionen/Kapitel.
+Dies ist die Grundbasis von Haali TRACKSETEX.
+Als weiterer Inhalt könnten noch die Matroska Anhänge verwendet werden, um zum Beispiel gezielt eine Schriftart für einen Untertitel zu laden.
+
+Für das Durchschalten vorhandener Inhaltsgruppen ist der Hotkey `g` verfügbar.
+Weiterhin kann in der mpv `input.conf` ein frei wählbarer Hotkey eingerichtet werden mittels dem `script-message-to` System.
+
+Um die Inhaltsgruppen mit der Taste "k" umzuschalten wird folgende Zeile verwendet.
+
+```lua
+k script-message-to mpvMatroska cycle-contentgroups
+```

@@ -20,7 +20,7 @@ It is also possible to use mpvMatroska as a single script, in which case the req
 
 #### Test version
 
-For the moment, a [test version](https://gleitz.info/index.php?attachment/100235-mpvmatroska-zip/) can be downloaded here.
+For the moment, a [test version](https://gleitz.info/index.php?attachment/100236-mpvmatroska-zip/) can be downloaded here.
 
 ## working Matroska features
 
@@ -40,3 +40,20 @@ For the moment, a [test version](https://gleitz.info/index.php?attachment/100235
 - Improved title display: the current edition name is appended to the file name
 - Correct edition list: the standard short-cut "E" is processed internally using its own switching method
 - Video rotation: with the Matroska Tags (not official in the Matroska specifications)
+- Matroska Content-Grouping: not yet officially included in the Matroska specifications
+
+### Matroska Content-Grouping
+
+This Matroska feature is about grouping the content in a Matroska file in a meaningful way.
+The content is all track types as well as the editions/chapters.
+This is the basic basis of Haali TRACKSETEX.
+The Matroska Attachments could be used as additional content, for example to specifically load a font for a subtitle.
+
+The hotkey `g` is available to switch through existing content groups.
+Furthermore, a freely selectable hotkey can be set up in the mpv `input.conf` using the `script-message-to` system.
+
+To switch the content groups with the "k" key, the following line is used.
+
+```lua
+k script-message-to mpvMatroska cycle-contentgroups
+```
