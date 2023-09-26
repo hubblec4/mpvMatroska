@@ -22,8 +22,9 @@ local MK_FEATURE = {
     multiple_editions       = 17, -- more than one edition is present
     multiple_edition_names  = 55, -- there is more than one edition name
     multiple_chapter_names  = 56, -- there is more than one chapter name
-    native_menu             = 98, -- Matroska Native Menu -> ChapterProcessCodecID = 0
-    dvd_menu                = 99, -- Matroska DVD Menu -> ChapterProcessCodecID = 1
+    native_menu             = 90, -- Matroska Native Menu -> ChapterProcessCodecID = 0
+    dvd_menu                = 91, -- Matroska DVD Menu -> ChapterProcessCodecID = 1
+    haali_TRACKSETEX        = 99, -- Haali's TRACKSETEX, not official Matroska
     -- other features later
 }
 
@@ -278,6 +279,9 @@ local Mk_Playback = {
 
     -- edition_is_changing: boolean
     edition_is_changing = false,
+
+    -- content_group_idx: integer
+    content_group_idx = 0, -- needed for cycle
 }
 
 -- constructor
@@ -291,6 +295,8 @@ function Mk_Playback:new(path)
     elem.used_features = {}
     elem.available_chapters_langs = {}
     elem.internal_editions = {}
+    -- content_groups: array of content_group{name: string; vid?: integer; aid?: integer; sid?: integer; eid?: integer}
+    elem.content_groups = {}
     elem:_scan(path)
     return elem
 end
@@ -395,6 +401,9 @@ function Mk_Playback:edition_changing(new_idx)
 
     self.edition_is_changing = true -- changing edition is now true
 
+    -- load the edition with the new edl path
+    mp.commandv("loadfile", self.edl_path, "replace")
+
     return true
     
     --TODO: for later: check switching Angle-Editions
@@ -487,6 +496,18 @@ function Mk_Playback:mpv_set_media_title()
 end
 
 
+-- cycle_content_groups: cycles the content groups
+function Mk_Playback:cycle_content_groups()
+	if not self.used_features[MK_FEATURE.haali_TRACKSETEX] then return end
+	
+	if self.content_group_idx == #self.content_groups or self.content_group_idx == 0 then
+		self.content_group_idx = 1
+	else
+		self.content_group_idx = self.content_group_idx + 1
+	end
+	self:_set_content_from_group(self.content_group_idx)
+end
+
 
 -- private section -------------------------------------------------------------
 
@@ -521,6 +542,7 @@ function Mk_Playback:_scan(path)
     self:_check_hard_linking()
     self:_analyze_chapters()
     self:_build_timelines()
+    self:_check_content_grouping()
 end
 
 -- _get_main_file: returns the current main file
@@ -1142,6 +1164,159 @@ function Mk_Playback:_build_timelines()
 
     -- set active edl_path
     self.edl_path = self.internal_editions[self.current_edition_idx].edl_path
+end
+
+-- _check_content_grouping (private): a method to get the content groups
+function Mk_Playback:_check_content_grouping()
+    -- content grouping is currently not in the Matroska specs
+    -- only a non-official way was implemented in HAALI Splitter called TRACKSETEX
+    -- TRACKSETEX is stored in the Matroska Tags
+    -- note: all index values are 0-based
+
+    local mk_file = self:_get_main_file()
+    if not mk_file or not mk_file.Tags then return end
+
+    -- trk_file: is mostly the same like mk_file but sometime not
+    local trk_file = self:_get_main_file(true)
+    if not trk_file then return end
+
+    -- find the Tags with TRACKSETEX
+    local tag = mk_file.Tags:find_Tag_byName(nil, "TRACKSETEX")
+    if not tag then return end
+
+
+    -- process TRACKSETEX
+    local function process_TRACKSETEX(str)
+        if not str then return end
+        -- str example: "1 #0 #0 #2 eng English: 1.Edition with forced subs"
+        -- the first param could also an index start with "#" (an extension for TRACKSETEX)
+        -- the language param could also be extended for the BCP47
+        -- if a param is an UID then we need the main_track_file to check the track UIDs
+        local eid, vid, aid, sid, lng, name = str:match("^(%S+) (%S+) (%S+) (%S+) (%S+) ?(.*)$")
+
+        -- check edition
+        if eid ~= "." and mk_file.Chapters then -- edition is defined
+            if eid:sub(1, 1) == "#" then -- edition index is used
+                eid = tonumber(eid:sub(2))
+                if not eid then return end
+                eid = eid + 1 -- increse index to stay in synch with the internal editions
+                if eid > #self.internal_editions then return end
+
+            else -- EditionUID is used
+                local ed, idx = mk_file.Chapters:get_edition(0, tonumber(eid))
+                if ed then eid = idx else return end
+            end
+
+        else -- eid is "." -> nil it
+            eid = nil
+        end
+
+        -- check video
+        if vid == "." then vid = nil -- no video change
+        elseif vid == "x" then vid = 0 -- no video track
+        elseif vid:sub(1, 1) == "#" then -- video index is used
+            vid = tonumber(vid:sub(2))
+            if not vid then return end
+            vid = vid + 1 -- increse index to stay in synch with the internal editions
+            -- check index
+            if not trk_file:get_video(vid) then return end
+
+        else -- video UID is used
+            local trk, idx = trk_file:get_video(0, vid)
+            if trk then vid = idx end
+        end
+
+        -- check audio
+        if aid == "." then aid = nil -- no audio change
+        elseif aid == "x" then aid = 0 -- no audio track
+        elseif aid:sub(1, 1) == "#" then -- audio index is used
+            aid = tonumber(aid:sub(2))
+            if not aid then return end
+            aid = aid + 1 -- increse index to stay in synch with the internal editions
+            -- check index
+            if not trk_file:get_audio(aid) then return end
+
+        else -- audio UID is used
+            local trk, idx = trk_file:get_audio(0, aid)
+            if trk then aid = idx end
+        end
+
+        -- check subtitle
+        if sid == "." then sid = nil -- no subtitle change
+        elseif sid == "x" then sid = 0 -- no subtitle track
+        elseif sid:sub(1, 1) == "#" then -- subtitle index is used
+            sid = tonumber(sid:sub(2))
+            if not sid then return end
+            sid = sid + 1 -- increse index to stay in synch with the internal editions
+            -- check index
+            if not trk_file:get_subtitle(sid) then return end
+
+        else -- subtitle UID is used
+            local trk, idx = trk_file:get_subtitle(0, sid)
+            if trk then sid = idx end
+        end
+
+        -- add content group
+        table.insert(self.content_groups, {name = name, vid = vid, aid = aid, sid = sid, eid = eid})
+    end
+
+
+    -- loop SimpleTag
+    local simple, s = tag:find_child(mk.tags.SimpleTag)
+    while simple do
+        if simple:get_child(mk.tags.TagName).value == "TRACKSETEX" then
+            process_TRACKSETEX(simple:get_string())
+        end
+        simple, s = tag:find_next_child(s)
+    end
+
+    -- check the count of the groups
+    if #self.content_groups > 0 then
+        self.used_features[MK_FEATURE.haali_TRACKSETEX] = true
+    end
+end
+
+-- _set_content_from_group (private): sets the defined content from a content group
+function Mk_Playback:_set_content_from_group(idx)
+    if idx == nil then idx = 1 end
+    if idx > #self.content_groups then return end
+
+    local cont = self.content_groups[idx]
+
+    -- video
+    if cont.vid ~= nil then
+        if cont.vid == 0 then -- no video
+            mp.set_property_native("vid", "no")
+        else
+            mp.set_property_native("vid", cont.vid)
+        end
+    end
+
+    -- audio
+    if cont.aid ~= nil then
+        if cont.aid == 0 then -- no audio
+            mp.set_property_native("aid", "no")
+        else
+            mp.set_property_native("aid", cont.aid)
+        end
+    end
+
+    -- sub
+    if cont.sid ~= nil then
+        if cont.sid == 0 then -- no sub
+            mp.set_property_native("sid", "no")
+        else
+            mp.set_property_native("sid", cont.sid)
+        end
+    end
+
+    -- edition
+    if cont.eid then
+        self:edition_changing(cont.eid)
+        return
+    end
+	
+	mp.osd_message(cont.name)
 end
 
 -- _set_edition_names (private): a method to change the edition depend on the given languages
