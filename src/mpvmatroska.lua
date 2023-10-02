@@ -9,7 +9,17 @@ local mkplay
 -- disable mpv's internal ordered-chapters support!
 mp.set_property_native("ordered-chapters", false)
 
-msg.debug("Matroska Playback loded: ", mkplayback ~= nil)
+-- uosc support for better handling menus and buttons
+local uosc_is_installed = false
+
+-- Register response handler
+mp.register_script_message('uosc-version', function(version)
+    uosc_is_installed = version ~= nil
+end)
+-- Ask for version
+mp.commandv('script-message-to', 'uosc', 'get-version', mp.get_script_name())
+
+-- uosc_open_contentgroups: send a command to uosc for open Matroska content-groups menu
 
 
 
@@ -69,6 +79,13 @@ msg.info("Matroska Playback: on_load")
         mp.register_event("file-loaded", mp_file_loaded)
         mp.set_property("stream-open-filename", mkplay.edl_path)
 		
+        -- uosc settings
+        if uosc_is_installed then
+            mp.register_script_message("set-contentgroup", function(idx) mkplay:_set_content_from_group(tonumber(idx)) end)
+            mp.add_key_binding("ALT+g", "open-contentgroups",
+				function() mp.commandv('script-message-to', 'uosc', 'open-menu', mkplay:uosc_get_contengroups_menu()) end)
+        end
+
     -- the loaded file is not Matroska, disable mpvMatroska
     else
         mkplay:close()
@@ -86,3 +103,5 @@ mp.add_hook("on_load", 50, mp_on_load)
 
 mp.register_script_message("cycle-editions", function() mkplay:edition_changing(0) end)
 mp.register_script_message("cycle-contentgroups", function() mkplay:cycle_content_groups() end)
+mp.register_script_message("open-contentgroups",
+	function() mp.commandv('script-message-to', 'uosc', 'open-menu', mkplay:uosc_get_contengroups_menu()) end)

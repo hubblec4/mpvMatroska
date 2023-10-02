@@ -509,6 +509,25 @@ function Mk_Playback:cycle_content_groups()
 end
 
 
+-- uosc GUI section ------------------------------------------------------------
+
+-- create_contengroups_menu
+function Mk_Playback:uosc_get_contengroups_menu()
+    local menu = { -- init header
+        type = "contengroups",
+        title = "Matroska Content-Groups",
+        items = {}
+    }
+    -- loop over the groups
+    for i, cg in ipairs(self.content_groups) do
+        table.insert(menu.items, {title = cg.name, value = "script-message-to mpvMatroska set-contentgroup " .. i --[[ this is now the command]]})
+    end
+
+    local str = utils.format_json(menu)
+    return str
+end
+
+
 -- private section -------------------------------------------------------------
 
 -- close_files: a method to clean temp_files and mk_files
@@ -1281,6 +1300,7 @@ function Mk_Playback:_set_content_from_group(idx)
     if idx == nil then idx = 1 end
     if idx > #self.content_groups then return end
 
+    self.content_group_idx = idx
     local cont = self.content_groups[idx]
 
     -- video
