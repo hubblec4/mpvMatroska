@@ -78,7 +78,7 @@ I use the following code for this.
 command:hub:script-binding mpvMatroska/open-contentgroups?Content-Groups
 ```
 
-### Matroska versions
+### Matroska Editions
 
 Currently mpv doesn't handle multiple editions correctly and even creates an incorrect list when linking chapters come into play.
 Therefore, the mpv internal method should not be used to switch editions.
