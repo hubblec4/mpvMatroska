@@ -510,6 +510,47 @@ end
 
 
 -- uosc GUI section ------------------------------------------------------------
+--[[ Menu data structure
+Menu {
+  type?: string;
+  title?: string;
+  items: Item[];
+  selected_index?: integer;
+  keep_open?: boolean;
+  on_close?: string | string[];
+  on_search?: string | string[];
+  palette?: boolean;
+  search_debounce?: 'submit' | number;
+  search_suggestion?: string;
+}
+
+Item = Command | Submenu;
+
+Submenu {
+  title?: string;
+  hint?: string;
+  items: Item[];
+  keep_open?: boolean;
+  on_search?: string | string[];
+  palette?: boolean;
+  search_debounce?: 'submit' | number;
+  search_suggestion?: string;
+}
+
+Command {
+  title?: string;
+  hint?: string;
+  icon?: string;
+  value: string | string[];
+  bold?: boolean;
+  italic?: boolean;
+  align?: 'left'|'center'|'right';
+  selectable?: boolean;
+  muted?: boolean;
+  active?: integer;
+  keep_open?: boolean;
+}
+]]
 
 -- create_contengroups_menu
 function Mk_Playback:uosc_get_contengroups_menu()
@@ -526,6 +567,25 @@ function Mk_Playback:uosc_get_contengroups_menu()
     local str = utils.format_json(menu)
     return str
 end
+
+-- create_editions_menu
+function Mk_Playback:uosc_get_editions_menu()
+    local menu = { -- init header
+        type = "intern-editions",
+        title = "Editions",
+        items = {}
+    }
+    -- loop over the internal editions
+    for i, ie in ipairs(self.internal_editions) do
+        table.insert(menu.items, {title = ie.current_name, hint = mkp.get_timestamp(ie.duration, uosc_options.time_precision),
+            active = i == self.current_edition_idx,
+            value = "script-message-to mpvMatroska set-edition " .. i --[[ this is now the command]]})
+    end
+
+    local str = utils.format_json(menu)
+    return str
+end
+
 
 
 -- private section -------------------------------------------------------------

@@ -1,5 +1,6 @@
 local mp = require "mp"
 local msg = require "mp.msg"
+opt = require('mp.options')
 
 local mkplayback = require "matroskaplayback"
 local mkplay
@@ -11,6 +12,9 @@ mp.set_property_native("ordered-chapters", false)
 
 -- uosc support for better handling menus and buttons
 local uosc_is_installed = false
+uosc_options = {
+	time_precision = 0,
+}
 
 -- Register response handler
 mp.register_script_message('uosc-version', function(version)
@@ -79,9 +83,22 @@ msg.info("Matroska Playback: on_load")
         mp.register_event("file-loaded", mp_file_loaded)
         mp.set_property("stream-open-filename", mkplay.edl_path)
 		
+        mp.register_script_message("cycle-editions", function() mkplay:edition_changing(0) end)
+        mp.register_script_message("set-edition", function(idx) mkplay:edition_changing(tonumber(idx)) end)
+        mp.register_script_message("cycle-contentgroups", function() mkplay:cycle_content_groups() end)
+        mp.register_script_message("set-contentgroup", function(idx) mkplay:_set_content_from_group(tonumber(idx)) end)
+
         -- uosc settings
         if uosc_is_installed then
-            mp.register_script_message("set-contentgroup", function(idx) mkplay:_set_content_from_group(tonumber(idx)) end)
+			opt.read_options(uosc_options, 'uosc')
+			
+            mp.register_script_message("open-editions",
+	            function() mp.commandv('script-message-to', 'uosc', 'open-menu', mkplay:uosc_get_editions_menu()) end)
+            mp.add_key_binding("ALT+e", "open-editions",
+				function() mp.commandv('script-message-to', 'uosc', 'open-menu', mkplay:uosc_get_editions_menu()) end)
+
+            mp.register_script_message("open-contentgroups",
+	            function() mp.commandv('script-message-to', 'uosc', 'open-menu', mkplay:uosc_get_contengroups_menu()) end)
             mp.add_key_binding("ALT+g", "open-contentgroups",
 				function() mp.commandv('script-message-to', 'uosc', 'open-menu', mkplay:uosc_get_contengroups_menu()) end)
         end
@@ -99,9 +116,3 @@ end
 mp.add_hook("on_load", 50, mp_on_load)
 --mp.add_hook("on_preloaded", 50, mp_on_preloaded)
 
---[[ MESSAGE HANDLERS ]]
-
-mp.register_script_message("cycle-editions", function() mkplay:edition_changing(0) end)
-mp.register_script_message("cycle-contentgroups", function() mkplay:cycle_content_groups() end)
-mp.register_script_message("open-contentgroups",
-	function() mp.commandv('script-message-to', 'uosc', 'open-menu', mkplay:uosc_get_contengroups_menu()) end)
