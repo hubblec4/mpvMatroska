@@ -18,9 +18,14 @@ All you have to do is copy the mpvMatroska folder into the mpv-scripts folder.
 
 It is also possible to use mpvMatroska as a single script, in which case the required modules must be available in mpv `~~/script-modules/` folder.
 
+### uosc
+
+mpvMatroska uses the GUI from [uosc](https://github.com/tomasklaen/uosc) to display lists and buttons.
+mpvMatroska still works without uosc, but then you don't have any selection lists.
+
 #### Test version
 
-For the moment, a [test version](https://gleitz.info/index.php?attachment/100236-mpvmatroska-zip/) can be downloaded here.
+For the moment, a [test version](https://gleitz.info/index.php?attachment/100237-mpvmatroska-zip/) can be downloaded here.
 
 ## working Matroska features
 
@@ -54,6 +59,39 @@ Furthermore, a freely selectable hotkey can be set up in the mpv `input.conf` us
 
 To switch the content groups with the "k" key, the following line is used.
 
-```lua
+```text
 k script-message-to mpvMatroska cycle-contentgroups
+```
+
+If uosc is installed you can open the selection menu with the hotkey `ALT+g`.
+You can also assign your own hotkey to open the selection menu.
+
+```text
+G script-message-to mpvMatroska open-contentgroups
+```
+
+You can also install your own button in the control menu in uosc.
+To do this you have to adapt the line `controls=` in `uosc.conf`.
+I use the following code for this.
+
+```text
+command:hub:script-binding mpvMatroska/open-contentgroups?Content-Groups
+```
+
+### Matroska versions
+
+Currently mpv doesn't handle multiple editions correctly and even creates an incorrect list when linking chapters come into play.
+Therefore, the mpv internal method should not be used to switch editions.
+
+You can also assign a separate hotkey to switch between editions.
+
+```text
+your-key script-message-to mpvMatroska cycle-editions
+```
+
+A separate editions button can (and should) be created in the uosc control menu.
+To do this you have to adapt the line `controls=` in `uosc.conf`.
+
+```text
+command:bookmarks:script-binding mpvMatroska/open-editions?Editions
 ```

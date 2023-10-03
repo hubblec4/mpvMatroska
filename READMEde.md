@@ -18,9 +18,14 @@ Alles was man tun muss, ist den mpvMatroska Ordner in den mpv Scripte Ordner kop
 
 Ebenso ist es möglich mpvMatroska auch als Single-Script zu verwenden, wobei dann die benötigten Module im mpv `~~/script-modules/` Ordner vorhanden sein müssen.
 
+### uosc
+
+mpvMatroska nutzt die GUI von [uosc](https://github.com/tomasklaen/uosc) für die Darstellung von Listen und Buttons.
+mpvMatroska funktioniert auch weiterhin ohne uosc, allerdings hat man dann keine Auswahllisten.
+
 #### Test Version
 
-Für den moment kann hier eine [Test Version](https://gleitz.info/index.php?attachment/100236-mpvmatroska-zip/) heruntergeladen werden.
+Für den moment kann hier eine [Test Version](https://gleitz.info/index.php?attachment/100237-mpvmatroska-zip/) heruntergeladen werden.
 
 ## funktionierende Matroska Features
 
@@ -54,6 +59,39 @@ Weiterhin kann in der mpv `input.conf` ein frei wählbarer Hotkey eingerichtet w
 
 Um die Inhaltsgruppen mit der Taste "k" umzuschalten wird folgende Zeile verwendet.
 
-```lua
+```text
 k script-message-to mpvMatroska cycle-contentgroups
+```
+
+Wenn uosc installiert ist kann man mit dem Hotkey `ALT+g` das Auswahlmenü öffnen.
+Ebenso kann ein eigener Hotkey vergeben werden um das Auswahlmenü zu öffnen.
+
+```text
+G script-message-to mpvMatroska open-contentgroups
+```
+
+Weiterhin kann man in uosc einen eigenen Button im Kontrollmenü einbauen.
+Dazu muss man in der `uosc.conf` die Zeile `controls=` anpassen.
+Ich nutze dazu folgenden code.
+
+```text
+command:hub:script-binding mpvMatroska/open-contentgroups?Content-Groups
+```
+
+### Matroska Versionen
+
+Momentan verarbeitet mpv multiple Versionen nicht korrekt und erstellt sogar eine falsche Liste wenn verknüpfende Kapitel ins Spiel kommen.
+Daher sollte zum Umschaten der Versionen nicht die mpv interne Methode genutzt werden.
+
+Für das Durschalten der Versionen kann ebenfalls ein eigener Hotkey vergeben werden.
+
+```text
+your-key script-message-to mpvMatroska cycle-editions
+```
+
+Im uosc Kontrollmenü kann (und sollte) ein eigener Versionen Button erstellt werden.
+Dazu muss man in der `uosc.conf` die Zeile `controls=` anpassen.
+
+```text
+command:bookmarks:script-binding mpvMatroska/open-editions?Editions
 ```
