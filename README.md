@@ -21,8 +21,6 @@ But to keep everything simple, mpvMatroska uses the `mpv folder system` for scri
 
 All you have to do is copy the mpvMatroska folder into the mpv-scripts folder.
 
-It is also possible to use mpvMatroska as a single script, in which case the required modules must be available in mpv `~~/script-modules/` folder.
-
 ### uosc
 
 mpvMatroska uses the GUI from [uosc](https://github.com/tomasklaen/uosc) to display lists and buttons.

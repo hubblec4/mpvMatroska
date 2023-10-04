@@ -21,8 +21,6 @@ Damit aber alles einfach bleibt nutzt mpvMatroska das `mpv Ordner System` für S
 
 Alles was man tun muss, ist den mpvMatroska Ordner in den mpv Scripte Ordner kopieren.
 
-Ebenso ist es möglich mpvMatroska auch als Single-Script zu verwenden, wobei dann die benötigten Module im mpv `~~/script-modules/` Ordner vorhanden sein müssen.
-
 ### uosc
 
 mpvMatroska nutzt die GUI von [uosc](https://github.com/tomasklaen/uosc) für die Darstellung von Listen und Buttons.
