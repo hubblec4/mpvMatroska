@@ -12,6 +12,11 @@ Zum Testen der Matroska Features nutze ich mein [Matroska-Playback](https://gith
 ## Installation
 
 mpvMatroska benutzt einige andere Lua Module.
+
+- [LuaEBML](https://github.com/hubblec4/LuaEBML)
+- [LuaMatroska](https://github.com/hubblec4/LuaMatroska)
+- [LuaMatroskaParser](https://github.com/hubblec4/LuaMatroskaParser)
+
 Damit aber alles einfach bleibt nutzt mpvMatroska das `mpv Ordner System` für Scripte die aus mehreren Modulen bestehen.
 
 Alles was man tun muss, ist den mpvMatroska Ordner in den mpv Scripte Ordner kopieren.
