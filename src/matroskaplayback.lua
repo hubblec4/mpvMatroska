@@ -491,7 +491,16 @@ end
 
 -- mpv_set_media_title: a method to change the media title in the OSC and mpv window
 function Mk_Playback:mpv_set_media_title()
-	local title = get_filename(self:_get_main_file().path) .. " {" .. self:current_edition().current_name .. "}"
+    local title = self:_get_main_file(true):get_title() -- get title from main track file
+    if title == "" then title = get_filename(self:_get_main_file().path) end -- no title found, use the filename
+
+    if self.used_features[MK_FEATURE.multiple_editions]
+    or self.used_features[MK_FEATURE.multiple_edition_names] then
+        local ed_name = self:current_edition().current_name
+        if ed_name ~= "" then
+            title = title .. " {" .. ed_name .. "}"
+        end
+    end
 	mp.set_property("force-media-title", title)
 end
 
