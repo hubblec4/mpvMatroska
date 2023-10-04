@@ -83,7 +83,7 @@ command:hub:script-binding mpvMatroska/open-contentgroups?Content-Groups
 Momentan verarbeitet mpv multiple Versionen nicht korrekt und erstellt sogar eine falsche Liste wenn verknüpfende Kapitel ins Spiel kommen.
 Daher sollte zum Umschaten der Versionen nicht die mpv interne Methode genutzt werden.
 
-Für das Durschalten der Versionen kann ebenfalls ein eigener Hotkey vergeben werden.
+Für das Durchschalten der Versionen kann ebenfalls ein eigener Hotkey vergeben werden.
 
 ```text
 your-key script-message-to mpvMatroska cycle-editions
