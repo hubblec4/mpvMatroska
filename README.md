@@ -28,7 +28,7 @@ mpvMatroska still works without uosc, but then you don't have any selection list
 
 #### Test version
 
-For the moment, a [test version](https://gleitz.info/index.php?attachment/100237-mpvmatroska-zip/) can be downloaded here.
+For the moment, a [test version](https://gleitz.info/index.php?attachment/100238-mpvmatroska-zip/) can be downloaded here.
 
 ## working Matroska features
 
@@ -45,7 +45,7 @@ For the moment, a [test version](https://gleitz.info/index.php?attachment/100237
 ## mpvMatroska features
 
 - Automatic switching of edition and chapter names when the audio or subtitle track is changed
-- Improved title display: the current edition name is appended to the file name
+- Improved title display: the current edition name is appended to the file name or the file Title(if present)
 - Correct edition list: the standard short-cut "E" is processed internally using its own switching method
 - Video rotation: with the Matroska Tags (not official in the Matroska specifications)
 - Matroska Content-Grouping: not yet officially included in the Matroska specifications

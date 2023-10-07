@@ -28,7 +28,7 @@ mpvMatroska funktioniert auch weiterhin ohne uosc, allerdings hat man dann keine
 
 #### Test Version
 
-Für den moment kann hier eine [Test Version](https://gleitz.info/index.php?attachment/100237-mpvmatroska-zip/) heruntergeladen werden.
+Für den moment kann hier eine [Test Version](https://gleitz.info/index.php?attachment/100238-mpvmatroska-zip/) heruntergeladen werden.
 
 ## funktionierende Matroska Features
 
@@ -45,7 +45,7 @@ Für den moment kann hier eine [Test Version](https://gleitz.info/index.php?atta
 ## mpvMatroska Features
 
 - Automatisches Umschalten der Versions- und Kapitel Namen wenn die Audio- oder Untertitelspur gewechselt wird
-- Verbesserte Titel Anzeige: der aktuelle Versionsname wird an den Dateinamen angehängt
+- Verbesserte Titel Anzeige: der aktuelle Versionsname wird an den Dateinamen oder den Datei Titel(wenn vorhanden) angehängt
 - Korrekte Versionen Liste: der Standard Short-Cut "E" wird intern mit einer eigenen Durchschalt-Methode verarbeitet
 - Video Rotation: mit den Matroska Tags (nicht offiziell in den Matroska Spezifikationen)
 - Matroska Inhaltsgruppierung: noch nicht offiziell in den Matroska Spezifikationen enthalten
