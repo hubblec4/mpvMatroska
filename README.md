@@ -94,7 +94,12 @@ your-key script-message-to mpvMatroska cycle-editions
 
 A separate editions button can (and should) be created in the uosc control menu.
 To do this you have to adapt the line `controls=` in `uosc.conf`.
+The predefined standard entry must be replaced.
 
 ```text
+// original entry:
+<has_many_edition>editions
+
+// to be replaced with:
 command:bookmarks:script-binding mpvMatroska/open-editions?Editions
 ```

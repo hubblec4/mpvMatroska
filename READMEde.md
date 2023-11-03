@@ -94,7 +94,12 @@ your-key script-message-to mpvMatroska cycle-editions
 
 Im uosc Kontrollmenü kann (und sollte) ein eigener Versionen Button erstellt werden.
 Dazu muss man in der `uosc.conf` die Zeile `controls=` anpassen.
+Der vordefiniert Standard Eintrag muss ersetzt werden.
 
 ```text
+// originaler Eintrag:
+<has_many_edition>editions
+
+// zu ersetzen mit:
 command:bookmarks:script-binding mpvMatroska/open-editions?Editions
 ```
