@@ -51,6 +51,7 @@ local Internal_Edition = {
     current_name = "",
     duration = 0,
     ordered = false, -- edition use ordered chapters?
+    hidden = false,
 }
 
 -- constructor
@@ -385,11 +386,22 @@ function Mk_Playback:edition_changing(new_idx)
 
     -- new_idx: integer, 0 means toggle, all other values means the index
     if new_idx == 0 then
-        -- toggle editions
-        if self.current_edition_idx == #self.internal_editions then -- is already last edition
-            self.current_edition_idx = 1 -- set to first edition
-        else
-            self.current_edition_idx = self.current_edition_idx + 1 -- next index
+        -- toggle editions: this is a user option and hidden editions must be skipped
+        -- if all editions are hidden -> no toggle
+        new_idx = self.current_edition_idx
+        while true do
+            -- get next index
+            if new_idx == #self.internal_editions then
+                new_idx = 1 else new_idx = new_idx +1
+            end
+            -- check index - is current edition index?
+            if new_idx == self.current_edition_idx then return false end -- no next not hidden edition found
+
+            -- check hidden state
+            if not self.internal_editions[new_idx].hidden then
+                self.current_edition_idx = new_idx
+                break
+            end
         end
 
     else
@@ -586,9 +598,11 @@ function Mk_Playback:uosc_get_editions_menu()
     }
     -- loop over the internal editions
     for i, ie in ipairs(self.internal_editions) do
-        table.insert(menu.items, {title = ie.current_name, hint = mkp.get_timestamp(ie.duration, uosc_options.time_precision),
-            active = i == self.current_edition_idx,
-            value = "script-message-to mpvMatroska set-edition " .. i --[[ this is now the command]]})
+        if not ie.hidden then
+            table.insert(menu.items, {title = ie.current_name, hint = mkp.get_timestamp(ie.duration, uosc_options.time_precision),
+                active = i == self.current_edition_idx,
+                value = "script-message-to mpvMatroska set-edition " .. i --[[ this is now the command]]})
+        end
     end
 
     local str = utils.format_json(menu)
@@ -1207,6 +1221,7 @@ function Mk_Playback:_build_timelines()
         edition_idx = edition_idx + 1
         intern_edition = Internal_Edition:new()
         intern_edition.ordered = edition:is_ordered()
+        intern_edition.hidden = edition:is_hidden()
 
         -- ordered edition
         if intern_edition.ordered then
