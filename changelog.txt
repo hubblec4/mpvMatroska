@@ -1,0 +1,13 @@
+mpvMatroska change log
+
+& added
+* fixed
+# improved
+% changed
+
+
+init - 2023-11-10
+
+* Hidden editions are now processed correctly
+
+% support for uosc 5.x.x, older versions no longer supported
