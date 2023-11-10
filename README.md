@@ -21,14 +21,12 @@ But to keep everything simple, mpvMatroska uses the `mpv folder system` for scri
 
 All you have to do is copy the mpvMatroska folder into the mpv-scripts folder.
 
+The current version of mpvMatroska can be downloaded in the `Releases`.
+
 ### uosc
 
 mpvMatroska uses the GUI from [uosc](https://github.com/tomasklaen/uosc) to display lists and buttons.
 mpvMatroska still works without uosc, but then you don't have any selection lists.
-
-#### Test version
-
-For the moment, a [test version](https://gleitz.info/index.php?attachment/100238-mpvmatroska-zip/) can be downloaded here.
 
 ## working Matroska features
 

@@ -21,14 +21,12 @@ Damit aber alles einfach bleibt nutzt mpvMatroska das `mpv Ordner System` für S
 
 Alles was man tun muss, ist den mpvMatroska Ordner in den mpv Scripte Ordner kopieren.
 
+Die aktuelle Version von mpvMatroska kann in den `Releases` heruntergeladen werden.
+
 ### uosc
 
 mpvMatroska nutzt die GUI von [uosc](https://github.com/tomasklaen/uosc) für die Darstellung von Listen und Buttons.
 mpvMatroska funktioniert auch weiterhin ohne uosc, allerdings hat man dann keine Auswahllisten.
-
-#### Test Version
-
-Für den moment kann hier eine [Test Version](https://gleitz.info/index.php?attachment/100238-mpvmatroska-zip/) heruntergeladen werden.
 
 ## funktionierende Matroska Features
 
