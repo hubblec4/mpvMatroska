@@ -20,10 +20,6 @@ uosc_options = {
 mp.register_script_message('uosc-version', function(version)
     uosc_is_installed = version ~= nil
 end)
--- Ask for version
-mp.commandv('script-message-to', 'uosc', 'get-version', mp.get_script_name())
-
--- uosc_open_contentgroups: send a command to uosc for open Matroska content-groups menu
 
 
 
