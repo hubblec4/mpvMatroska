@@ -237,6 +237,37 @@ function Internal_Edition:create_edl_path()
 end
 
 
+-- find chapter by UID: returns the internal chapter segment and the rest playtime of this chapter
+function Internal_Edition:find_chapter_byUID(uid)
+    -- this method will be needed for the GotoAndPlay() command
+    for i, intern_chap in ipairs(self.chapter_timeline) do
+        if not intern_chap.virtual then -- ignore virtaul chapter segments
+            if intern_chap.Chapter.get_child(mk.chapters.ChapterUID).value == uid then
+                return intern_chap
+            end
+        end
+    end
+
+    return nil
+end
+
+-- find chapter by time: returns the internal chapter segment and a rest duration of this chapter
+function Internal_Edition:find_chapter_byTime(ns_time)
+    -- find a chapter segment by it's chapter timeline marker time
+    -- time is in nano seconds and is a range from start to end time of the chapter
+    if ns_time == nil or ns_time < 0 then return end
+
+    for i, intern_chap in ipairs(self.chapter_timeline) do
+        if intern_chap.timeline_marker > ns_time then
+            return self.chapter_timeline[i - 1], intern_chap.timeline_marker - ns_time -- return prev chapter and rest duration
+        end
+    end
+    -- last chapter
+    return self.chapter_timeline[#self.chapter_timeline], self.duration - ns_time
+end
+
+
+
 -- -----------------------------------------------------------------------------
 -- Matroska Playback class -----------------------------------------------------
 -- -----------------------------------------------------------------------------
@@ -528,6 +559,22 @@ function Mk_Playback:cycle_content_groups()
 	end
 	self:_set_content_from_group(self.content_group_idx)
 end
+
+
+-- observe_playback_time: a method to react to the current play time
+function Mk_Playback:observe_playback_time(playtime)
+    -- if Matroska Native Menu is used there are chapters with commands -> find them
+
+    -- playtime in nanoseconds
+    playtime = math.floor(playtime * 1e9)
+
+    local intern_chap = self:current_edition():find_chapter_byTime(playtime)
+    if intern_chap == nil then return end
+
+    mp.osd_message(intern_chap.current_name .. " - " .. tostring(playtime)) -- for testing
+    
+end
+
 
 
 -- uosc GUI section ------------------------------------------------------------
@@ -1480,6 +1527,24 @@ function Mk_Playback:_change_edition_chapter_names(pref_sub_lang)
         self:mpv_set_media_title()
     end
 end
+
+
+
+-- find chapter by UID (private): returns an internal chapter segment
+function Mk_Playback:_find_chapter_byUID(uid)
+    -- this method will be needed for the GotoAndPlay() command
+    local intern_chap = nil
+
+    for i, intern_edition in ipairs(self.internal_editions) do
+        intern_chap = intern_edition:find_chapter_byUID(uid)
+
+        if intern_chap then break end
+    end
+
+    return intern_chap
+end
+
+
 
 -- export --
 return {

@@ -58,6 +58,9 @@ local function mp_file_loaded()
 
     -- key binding: cycle content groups
     mp.add_key_binding("g", "cycle-contentgroups", function() mkplay:cycle_content_groups() end)
+
+
+    mp.observe_property('playback-time', 'number', function(_, val) mkplay:observe_playback_time(val) end)
 end
 
 
