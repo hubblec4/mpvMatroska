@@ -60,7 +60,10 @@ local function mp_file_loaded()
     mp.add_key_binding("g", "cycle-contentgroups", function() mkplay:cycle_content_groups() end)
 
 
-    mp.observe_property('playback-time', 'number', function(_, val) mkplay:observe_playback_time(val) end)
+    -- register playback-time observation: only for Matroska Native menu
+    if mkplay.used_features[MK_FEATURE.native_menu] then
+        mp.observe_property("playback-time", "number", function(_, val) mkplay:observe_playback_time(val) end)
+    end
 end
 
 

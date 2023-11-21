@@ -10,7 +10,7 @@ local utils = require "mp.utils"
 
 
 -- constants -------------------------------------------------------------------
-local MK_FEATURE = {
+MK_FEATURE = {
     hard_linking            =  1, -- a special system to link files virtually to a single seamless timeline
     basic_chapters          =  2, -- chapters with only a start time
     nested_chapters         =  3, -- chapters within chapters
@@ -237,12 +237,12 @@ function Internal_Edition:create_edl_path()
 end
 
 
--- find chapter by UID: returns the internal chapter segment and the rest playtime of this chapter
+-- find chapter by UID: returns the internal chapter segment
 function Internal_Edition:find_chapter_byUID(uid)
     -- this method will be needed for the GotoAndPlay() command
     for i, intern_chap in ipairs(self.chapter_timeline) do
         if not intern_chap.virtual then -- ignore virtaul chapter segments
-            if intern_chap.Chapter.get_child(mk.chapters.ChapterUID).value == uid then
+            if intern_chap.Chapter:get_child(mk.chapters.ChapterUID).value == uid then
                 return intern_chap
             end
         end
@@ -255,7 +255,7 @@ end
 function Internal_Edition:find_chapter_byTime(ns_time)
     -- find a chapter segment by it's chapter timeline marker time
     -- time is in nano seconds and is a range from start to end time of the chapter
-    if ns_time == nil or ns_time < 0 then return end
+    if ns_time == nil or ns_time < 0 then return nil end
 
     for i, intern_chap in ipairs(self.chapter_timeline) do
         if intern_chap.timeline_marker > ns_time then
@@ -568,11 +568,20 @@ function Mk_Playback:observe_playback_time(playtime)
     -- playtime in nanoseconds
     playtime = math.floor(playtime * 1e9)
 
-    local intern_chap = self:current_edition():find_chapter_byTime(playtime)
-    if intern_chap == nil then return end
+    local intern_chap, rest = self:current_edition():find_chapter_byTime(playtime)
+    if intern_chap == nil or intern_chap.virtual then return end
 
-    mp.osd_message(intern_chap.current_name .. " - " .. tostring(playtime)) -- for testing
-    
+    -- determine process time
+    local process_time = mk.CHAP_PROCESS_TIME.DURING -- during as init value
+    if playtime >= intern_chap.timeline_marker and playtime < intern_chap.timeline_marker + 2e7 then -- a range of 20 milli seconds
+        process_time = mk.CHAP_PROCESS_TIME.BEFORE
+
+    elseif rest <= 2e7 then -- 20 milli seconds rest playtime of this chapter
+        process_time = mk.CHAP_PROCESS_TIME.AFTER
+    end
+
+    self:_chapter_process_handler(intern_chap, process_time)
+    --mp.osd_message(intern_chap.current_name .. " - " .. tostring(playtime)) -- for testing    
 end
 
 
@@ -1542,6 +1551,64 @@ function Mk_Playback:_find_chapter_byUID(uid)
     end
 
     return intern_chap
+end
+
+
+-- _chapter_process_handler (private): a method for handling a chapter and the commands
+function Mk_Playback:_chapter_process_handler(intern_chap, process_time)
+    --if intern_chap == nil then return end
+    local chap = intern_chap.Chapter
+    local process, p = chap:find_child(mk.chapters.ChapProcess)
+
+    if process == nil then return end
+
+    local function process_commands()
+        local cmd, c = process:find_child(mk.chapters.ChapProcessCommand)
+        if cmd == nil then return end
+
+        -- loop over the commands
+        while cmd do
+            -- check process time
+            local ptime = cmd:get_child(mk.chapters.ChapProcessTime).value
+            if ptime == process_time or ptime == mk.CHAP_PROCESS_TIME.DURING then
+                self:_MatroskaScript_Interpreter(cmd:get_child(mk.chapters.ChapProcessData).value)
+            end
+
+            cmd, c = process:find_next_child(c)
+        end
+    end
+
+    -- loop over the processes
+    while process do
+        if process:get_child(mk.chapters.ChapProcessCodecID).value == 0 then -- Matroska Scripts
+            process_commands()
+        end
+
+        process, p = chap:find_next_child(p)
+    end
+
+end
+
+-- _MatroskaScript_Interpreter (private): Interpret the commands
+function Mk_Playback:_MatroskaScript_Interpreter(cmd_data)
+    --[[ GotoAndPlay( ChapterUID ); for the moment the only existing command
+        planned commands:  Add Interactive Movie MatroskaScript commands #658 (GitHub issue)
+
+        choice_variable = CreateChoice();
+        choice_variable.SetText('some text', <BCP47 language>);
+        choice_variable.SetOnSelected( <function call> );
+        MakeDefaultChoice(a_choice_variable);
+
+    ]]
+
+    local script, value = cmd_data:match("(.+)%((.*)%);$")
+
+    if script == "GotoAndPlay" then
+        local chap = self:_find_chapter_byUID(tonumber(value))
+        if chap then
+            mp.set_property_number("playback-time", chap.timeline_marker / 1e9)
+        end
+    end
 end
 
 
