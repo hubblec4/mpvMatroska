@@ -39,6 +39,7 @@ mpvMatroska still works without uosc, but then you don't have any selection list
 - Multiple chapter names
 - Multiple edition names
 - Video rotation (with `ProjectionPoseRoll` element)
+- MatroskaScript menu
 
 ## mpvMatroska features
 

@@ -39,6 +39,7 @@ mpvMatroska funktioniert auch weiterhin ohne uosc, allerdings hat man dann keine
 - Multiple Kapitelnamen
 - Multiple Versionsnamen
 - Video Rotation (mit `ProjectionPoseRoll` Element)
+- MatroskaScript Menü
 
 ## mpvMatroska Features
 
