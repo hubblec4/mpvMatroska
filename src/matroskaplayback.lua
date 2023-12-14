@@ -196,7 +196,7 @@ function Internal_Edition:create_edl_path()
     -- all chapters should now have ever an end time
     local start_time = 0
     local prev_endtime = 0
-    local curr_endtime
+    local curr_endtime = 0
     local curr_path = ""
     self.edl_path = "edl://!no_chapters;" -- init edl path
 
